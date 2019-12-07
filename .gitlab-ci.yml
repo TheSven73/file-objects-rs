@@ -1,0 +1,11 @@
+image: "rust:latest"
+
+# Use cargo to test the project
+test:cargo:
+  script:
+    - pwd
+    - useradd -m user
+    - chmod -R o+rwx /usr/local/cargo
+    - chmod -R o+rwx .
+    - rustc --version && cargo --version  # Print version info for debugging
+    - su user -c 'cargo test --all --verbose --all-features'
