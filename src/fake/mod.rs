@@ -116,8 +116,15 @@ impl FileSystem for FakeFileSystem {
     fn open<P: AsRef<Path>>(&self, path: P) -> Result<Self::File> {
         self.apply(path.as_ref(), |r, p|
             r.get_file_contents(p)
-            .map(|contents| FakeFile::new(contents.clone())))
+            .map(|contents| FakeFile::open(contents.clone())))
+    }
 
+    fn create<P: AsRef<Path>>(&self, path: P) -> Result<Self::File> {
+        self.apply_mut(path.as_ref(), |r, p| {
+            r.write_file(p, &[])?;
+            let contents = r.get_file_contents(p)?;
+            Ok(FakeFile::create(contents.clone()))
+        })
     }
 
     fn current_dir(&self) -> Result<PathBuf> {
@@ -245,23 +252,47 @@ impl FileSystem for FakeFileSystem {
     }
 }
 
+/// How a `fs::File` is accessed.
+///
+#[derive(Debug, PartialEq)]
+enum AccessMode {
+    Read,
+    Write,
+}
+
 #[derive(Debug)]
 pub struct FakeFile {
     contents: SharedContents,
     pos: usize,
+    access_mode: AccessMode,
 }
 
 impl FakeFile {
-    fn new(contents: SharedContents) -> Self {
+    fn new(contents: SharedContents, access_mode: AccessMode) -> Self {
         FakeFile {
             contents,
             pos: 0,
+            access_mode,
+        }
+    }
+    fn open(contents: SharedContents) -> Self {
+        FakeFile::new(contents, AccessMode::Read)
+    }
+    fn create(contents: SharedContents) -> Self {
+        FakeFile::new(contents, AccessMode::Write)
+    }
+    fn verify_access(&self, access_mode: AccessMode) -> Result<()> {
+        if access_mode != self.access_mode {
+            Err(create_error(ErrorKind::Other))
+        } else {
+            Ok(())
         }
     }
 }
 
 impl io::Read for FakeFile {
     fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
+        self.verify_access(AccessMode::Read)?;
         let contents = self.contents.borrow();
         let pos = self.pos;
         // If the underlying file has shrunk, the offset could
@@ -293,6 +324,26 @@ impl io::Seek for FakeFile {
             // it's an error to seek before byte 0
             Err(create_error(ErrorKind::InvalidInput))
         }
+    }
+}
+
+impl io::Write for FakeFile {
+    fn write(&mut self, buf: &[u8]) -> Result<usize> {
+        self.verify_access(AccessMode::Write)?;
+        let mut contents = self.contents.borrow_mut();
+        let pos = self.pos;
+        // if pos points beyond eof, resize contents to pos and pad with zeros
+        if pos > contents.len() {
+            contents.resize(pos, 0);
+        }
+        let copy_len = min(buf.len(), contents.len() - pos);
+        contents[pos..pos+copy_len].copy_from_slice(&buf[..copy_len]);
+        contents.extend_from_slice(&buf[copy_len..]);
+        self.pos += buf.len();
+        Ok(buf.len())
+    }
+    fn flush(&mut self) -> Result<()> {
+        Ok(())
     }
 }
 

@@ -22,13 +22,20 @@ mod os;
 pub trait FileSystem: Clone + Send + Sync {
     type DirEntry: DirEntry;
     type ReadDir: ReadDir<Self::DirEntry>;
-    type File: io::Read + io::Seek + fmt::Debug;
+    type File: io::Read + io::Seek + io::Write + fmt::Debug;
 
     /// Attempts to open a file in read-only mode.
     /// This is based on [`fs::File::open`].
     ///
     /// [`fs::File::open`]: https://doc.rust-lang.org/std/fs/struct.File.html#method.open
     fn open<P: AsRef<Path>>(&self, path: P) -> Result<Self::File>;
+
+    /// Opens a file in write-only mode.
+    /// This function will create a file if it does not exist, and will truncate it if it does.
+    /// This is based on [`fs::File::create`].
+    ///
+    /// [`fs::File::create`]: https://doc.rust-lang.org/std/fs/struct.File.html#method.create
+    fn create<P: AsRef<Path>>(&self, path: P) -> Result<Self::File>;
 
     /// Returns the current working directory.
     /// This is based on [`std::env::current_dir`].

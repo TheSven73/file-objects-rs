@@ -54,6 +54,10 @@ impl FileSystem for OsFileSystem {
         fs::File::open(path)
     }
 
+    fn create<P: AsRef<Path>>(&self, path: P) -> Result<Self::File> {
+        fs::File::create(path)
+    }
+
     fn current_dir(&self) -> Result<PathBuf> {
         env::current_dir()
     }
