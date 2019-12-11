@@ -1,6 +1,6 @@
 extern crate filesystem;
 
-use std::io::{ErrorKind, Read};
+use std::io::{ErrorKind, Read, Seek, SeekFrom};
 use std::path::{Path, PathBuf};
 
 #[cfg(unix)]
@@ -141,6 +141,12 @@ macro_rules! test_fs {
             make_test!(open_object_reads_ok_after_file_updated, $fs);
             make_test!(open_object_reads_ok_after_file_shrunk, $fs);
 
+            make_test!(open_object_can_seek_from_start_then_read, $fs);
+            make_test!(open_object_can_seek_from_current_then_read, $fs);
+            make_test!(open_object_can_seek_from_end_then_read, $fs);
+            make_test!(open_object_fails_if_seeks_before_byte_0, $fs);
+            make_test!(open_object_can_seek_and_read_beyond_eof, $fs);
+
             #[cfg(unix)]
             make_test!(mode_returns_permissions, $fs);
             #[cfg(unix)]
@@ -153,6 +159,7 @@ macro_rules! test_fs {
 
             make_test!(temp_dir_creates_tempdir, $fs);
             make_test!(temp_dir_creates_unique_dir, $fs);
+
         }
     };
 }
@@ -1238,6 +1245,92 @@ fn open_object_reads_ok_after_file_shrunk<T: FileSystem>(fs: &T, parent: &Path) 
     let mut buf = vec![];
     reader.read_to_end(&mut buf).unwrap();
     assert_eq!(buf, b"");
+}
+
+fn open_object_can_seek_from_start_then_read<T: FileSystem>(fs: &T, parent: &Path) {
+    let path = parent.join("test.txt");
+    fs.write_file(&path, b"the quick brown fox").unwrap();
+    let mut reader = fs.open(&path).unwrap();
+
+    let result = reader.seek(SeekFrom::Start(5));
+    assert!(result.is_ok());
+    assert_eq!(result.unwrap(), 5);
+
+    let result = reader.seek(SeekFrom::Start(5));
+    assert!(result.is_ok());
+    assert_eq!(result.unwrap(), 5);
+
+    let mut buf = vec![];
+    reader.read_to_end(&mut buf).unwrap();
+    assert_eq!(buf, b"uick brown fox");
+}
+
+fn open_object_can_seek_from_current_then_read<T: FileSystem>(fs: &T, parent: &Path) {
+    let path = parent.join("test.txt");
+    fs.write_file(&path, b"the quick brown fox").unwrap();
+    let mut reader = fs.open(&path).unwrap();
+
+    let result = reader.seek(SeekFrom::Current(5));
+    assert!(result.is_ok());
+    assert_eq!(result.unwrap(), 5);
+
+    let result = reader.seek(SeekFrom::Current(5));
+    assert!(result.is_ok());
+    assert_eq!(result.unwrap(), 10);
+
+    let mut buf = vec![];
+    reader.read_to_end(&mut buf).unwrap();
+    assert_eq!(buf, b"brown fox");
+}
+
+fn open_object_can_seek_from_end_then_read<T: FileSystem>(fs: &T, parent: &Path) {
+    let path = parent.join("test.txt");
+    let msg = b"the quick brown fox";
+    fs.write_file(&path, msg).unwrap();
+    let mut reader = fs.open(&path).unwrap();
+
+    let result = reader.seek(SeekFrom::End(-5));
+    assert!(result.is_ok());
+    assert_eq!(result.unwrap() as usize, msg.len() - 5);
+
+    let result = reader.seek(SeekFrom::End(-5));
+    assert!(result.is_ok());
+    assert_eq!(result.unwrap() as usize, msg.len() - 5);
+
+    let mut buf = vec![];
+    reader.read_to_end(&mut buf).unwrap();
+    assert_eq!(buf, b"n fox");
+}
+
+fn open_object_fails_if_seeks_before_byte_0<T: FileSystem>(fs: &T, parent: &Path) {
+    let path = parent.join("test.txt");
+    fs.write_file(&path, b"the quick brown fox").unwrap();
+    let mut reader = fs.open(&path).unwrap();
+
+    reader.seek(SeekFrom::Start(5)).unwrap();
+
+    let result = reader.seek(SeekFrom::Current(-55));
+    assert!(result.is_err());
+    assert_eq!(result.unwrap_err().kind(), ErrorKind::InvalidInput);
+
+    // verify that the error did not change the position
+    let current_pos = reader.seek(SeekFrom::Current(0)).unwrap();
+    assert_eq!(current_pos, 5);
+}
+
+fn open_object_can_seek_and_read_beyond_eof<T: FileSystem>(fs: &T, parent: &Path) {
+    let path = parent.join("test.txt");
+    fs.write_file(&path, b"the quick brown fox").unwrap();
+    let mut reader = fs.open(&path).unwrap();
+
+    let result = reader.seek(SeekFrom::Current(55));
+    assert!(result.is_ok());
+    assert_eq!(result.unwrap(), 55);
+
+    let mut buf = vec![];
+    let result = reader.read_to_end(&mut buf);
+    assert!(result.is_ok());
+    assert_eq!(result.unwrap(), 0);
 }
 
 #[cfg(unix)]
