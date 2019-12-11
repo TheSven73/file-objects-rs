@@ -108,7 +108,7 @@ impl Registry {
 
     pub fn write_file(&mut self, path: &Path, buf: &[u8]) -> Result<()> {
         self.get_file_mut(path)
-            .map(|ref mut f| f.contents = buf.to_vec())
+            .map(|ref mut f| *f.contents.borrow_mut() = buf.to_vec())
             .or_else(|e| {
                 if e.kind() == ErrorKind::NotFound {
                     self.create_file(path, buf)
@@ -120,12 +120,12 @@ impl Registry {
 
     pub fn overwrite_file(&mut self, path: &Path, buf: &[u8]) -> Result<()> {
         self.get_file_mut(path)
-            .map(|ref mut f| f.contents = buf.to_vec())
+            .map(|ref mut f| *f.contents.borrow_mut() = buf.to_vec())
     }
 
     pub fn read_file(&self, path: &Path) -> Result<Vec<u8>> {
         match self.get_file(path) {
-            Ok(f) if f.mode & 0o444 != 0 => Ok(f.contents.clone()),
+            Ok(f) if f.mode & 0o444 != 0 => Ok(f.contents.borrow().to_vec()),
             Ok(_) => Err(create_error(ErrorKind::PermissionDenied)),
             Err(err) => Err(err),
         }
@@ -141,8 +141,9 @@ impl Registry {
     pub fn read_file_into(&self, path: &Path, buf: &mut Vec<u8>) -> Result<usize> {
         match self.get_file(path) {
             Ok(f) if f.mode & 0o444 != 0 => {
-                buf.extend(&f.contents);
-                Ok(f.contents.len())
+                let contents = f.contents.borrow();
+                buf.extend(contents.iter());
+                Ok(contents.len())
             }
             Ok(_) => Err(create_error(ErrorKind::PermissionDenied)),
             Err(err) => Err(err),
@@ -233,7 +234,7 @@ impl Registry {
     pub fn len(&self, path: &Path) -> u64 {
         self.get(path)
             .map(|node| match node {
-                Node::File(ref file) => file.contents.len() as u64,
+                Node::File(ref file) => file.contents.borrow().len() as u64,
                 Node::Dir(_) => 4096,
             })
             .unwrap_or(0)
