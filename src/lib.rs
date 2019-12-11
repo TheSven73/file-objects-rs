@@ -18,7 +18,7 @@ mod fake;
 mod os;
 
 /// Provides standard file system operations.
-pub trait FileSystem {
+pub trait FileSystem: Clone + Send + Sync {
     type DirEntry: DirEntry;
     type ReadDir: ReadDir<Self::DirEntry>;
 
@@ -206,7 +206,7 @@ pub trait TempDir {
 }
 
 #[cfg(feature = "temp")]
-pub trait TempFileSystem {
+pub trait TempFileSystem: Clone + Send + Sync {
     type TempDir: TempDir;
 
     /// Creates a new temporary directory.
