@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::io::{Error, ErrorKind, Result};
 use std::path::{Path, PathBuf};
 
-use super::node::{Dir, File, Node};
+use super::node::{Dir, File, Node, SharedContents};
 
 #[derive(Debug, Default)]
 pub struct Registry {
@@ -124,8 +124,13 @@ impl Registry {
     }
 
     pub fn read_file(&self, path: &Path) -> Result<Vec<u8>> {
+        self.get_file_contents(path)
+            .map(|contents| contents.borrow().to_vec())
+    }
+
+    pub fn get_file_contents(&self, path: &Path) -> Result<&SharedContents> {
         match self.get_file(path) {
-            Ok(f) if f.mode & 0o444 != 0 => Ok(f.contents.borrow().to_vec()),
+            Ok(f) if f.mode & 0o444 != 0 => Ok(&f.contents),
             Ok(_) => Err(create_error(ErrorKind::PermissionDenied)),
             Err(err) => Err(err),
         }

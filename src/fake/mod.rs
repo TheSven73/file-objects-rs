@@ -1,9 +1,11 @@
 use std::ffi::{OsStr, OsString};
-use std::io::Result;
+use std::io::{self, Result};
 use std::iter::Iterator;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::vec::IntoIter;
+use std::cmp::min;
+use fake::node::SharedContents;
 
 use FileSystem;
 #[cfg(unix)]
@@ -107,6 +109,14 @@ impl FakeFileSystem {
 impl FileSystem for FakeFileSystem {
     type DirEntry = DirEntry;
     type ReadDir = ReadDir;
+    type File = FakeFile;
+
+    fn open<P: AsRef<Path>>(&self, path: P) -> Result<Self::File> {
+        self.apply(path.as_ref(), |r, p|
+            r.get_file_contents(p)
+            .map(|contents| FakeFile::new(contents.clone())))
+
+    }
 
     fn current_dir(&self) -> Result<PathBuf> {
         let registry = self.registry.lock().unwrap();
@@ -230,6 +240,40 @@ impl FileSystem for FakeFileSystem {
 
     fn len<P: AsRef<Path>>(&self, path: P) -> u64 {
         self.apply(path.as_ref(), |r, p| r.len(p))
+    }
+}
+
+#[derive(Debug)]
+pub struct FakeFile {
+    contents: SharedContents,
+    pos: usize,
+}
+
+impl FakeFile {
+    fn new(contents: SharedContents) -> Self {
+        FakeFile {
+            contents,
+            pos: 0,
+        }
+    }
+}
+
+impl io::Read for FakeFile {
+    fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
+        let contents = self.contents.borrow();
+        let pos = self.pos;
+        // If the underlying file has shrunk, the offset could
+        // point to beyond eof.
+        let len = if pos < contents.len() {
+            min(contents.len() - pos, buf.len())
+        } else {
+            0
+        };
+        if len > 0 {
+            buf[..len].copy_from_slice(&contents[pos..pos+len]);
+            self.pos += len;
+        }
+        Ok(len)
     }
 }
 

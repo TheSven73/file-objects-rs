@@ -48,6 +48,11 @@ impl OsFileSystem {
 impl FileSystem for OsFileSystem {
     type DirEntry = fs::DirEntry;
     type ReadDir = fs::ReadDir;
+    type File = fs::File;
+
+    fn open<P: AsRef<Path>>(&self, path: P) -> Result<Self::File> {
+        fs::File::open(path)
+    }
 
     fn current_dir(&self) -> Result<PathBuf> {
         env::current_dir()
