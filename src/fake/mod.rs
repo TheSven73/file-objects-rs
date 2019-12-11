@@ -233,7 +233,7 @@ impl FileSystem for FakeFileSystem {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct DirEntry {
     parent: PathBuf,
     file_name: OsString,

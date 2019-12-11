@@ -1,4 +1,4 @@
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct File {
     pub contents: Vec<u8>,
     pub mode: u32,
@@ -13,7 +13,7 @@ impl File {
     }
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Default)]
 pub struct Dir {
     pub mode: u32,
 }
@@ -24,7 +24,7 @@ impl Dir {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub enum Node {
     File(File),
     Dir(Dir),

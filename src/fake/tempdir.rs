@@ -10,7 +10,7 @@ use super::Registry;
 
 const SUFFIX_LENGTH: usize = 10;
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct FakeTempDir {
     registry: Weak<Mutex<Registry>>,
     path: PathBuf,

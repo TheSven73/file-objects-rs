@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 
 use super::node::{Dir, File, Node};
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Default)]
 pub struct Registry {
     cwd: PathBuf,
     files: HashMap<PathBuf, Node>,
