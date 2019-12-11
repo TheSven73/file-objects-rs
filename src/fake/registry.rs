@@ -349,7 +349,7 @@ impl Registry {
     }
 }
 
-fn create_error(kind: ErrorKind) -> Error {
+pub fn create_error(kind: ErrorKind) -> Error {
     // Based on private std::io::ErrorKind::as_str()
     let description = match kind {
         ErrorKind::NotFound => "entity not found",

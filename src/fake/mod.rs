@@ -1,11 +1,13 @@
 use std::ffi::{OsStr, OsString};
-use std::io::{self, Result};
+use std::io::{self, Result, SeekFrom};
 use std::iter::Iterator;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::vec::IntoIter;
 use std::cmp::min;
+use std::io::ErrorKind;
 use fake::node::SharedContents;
+use fake::registry::create_error;
 
 use FileSystem;
 #[cfg(unix)]
@@ -274,6 +276,23 @@ impl io::Read for FakeFile {
             self.pos += len;
         }
         Ok(len)
+    }
+}
+
+impl io::Seek for FakeFile {
+    fn seek(&mut self, pos: SeekFrom) -> Result<u64> {
+        let pos = match pos {
+            SeekFrom::Start(pos) => pos as i64,
+            SeekFrom::End(offs) => self.contents.borrow().len() as i64 + offs,
+            SeekFrom::Current(offs) => self.pos as i64 + offs,
+        };
+        if pos >= 0 {
+            self.pos = pos as usize;
+            Ok(pos as u64)
+        } else {
+            // it's an error to seek before byte 0
+            Err(create_error(ErrorKind::InvalidInput))
+        }
     }
 }
 

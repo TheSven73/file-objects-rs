@@ -22,7 +22,7 @@ mod os;
 pub trait FileSystem: Clone + Send + Sync {
     type DirEntry: DirEntry;
     type ReadDir: ReadDir<Self::DirEntry>;
-    type File: io::Read + fmt::Debug;
+    type File: io::Read + io::Seek + fmt::Debug;
 
     /// Attempts to open a file in read-only mode.
     /// This is based on [`fs::File::open`].
