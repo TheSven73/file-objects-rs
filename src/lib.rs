@@ -1,5 +1,3 @@
-#[cfg(any(feature = "mock", test))]
-extern crate pseudo;
 #[cfg(feature = "temp")]
 extern crate rand;
 #[cfg(feature = "temp")]
@@ -11,16 +9,12 @@ use std::path::{Path, PathBuf};
 
 #[cfg(feature = "fake")]
 pub use fake::{FakeFileSystem};
-#[cfg(any(feature = "mock", test))]
-pub use mock::{FakeError, MockFileSystem};
 pub use os::OsFileSystem;
 #[cfg(feature = "temp")]
 pub use os::OsTempDir;
 
 #[cfg(feature = "fake")]
 mod fake;
-#[cfg(any(feature = "mock", test))]
-mod mock;
 mod os;
 
 /// Provides standard file system operations.

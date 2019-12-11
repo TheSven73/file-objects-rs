@@ -10,10 +10,6 @@ test:cargo:
     - rustc --version && cargo --version  # Print version info for debugging
     - su user -c 'cargo build --no-default-features --features fake'
     - su user -c 'cargo clean'
-    - su user -c 'cargo build --no-default-features --features mock'
-    - su user -c 'cargo clean'
     - su user -c 'cargo build --no-default-features --features temp'
     - su user -c 'cargo clean'
-    - su user -c 'cargo build --no-default-features --features testing'
-    - su user -c 'cargo clean'
-    - su user -c 'cargo test --all --verbose --all-features'
+    - su user -c 'cargo test --all --verbose'

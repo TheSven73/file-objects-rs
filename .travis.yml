@@ -8,11 +8,6 @@ nofications:
 script:
   - cargo build --no-default-features --features fake
   - cargo clean
-  - cargo build --no-default-features --features mock
-  - cargo clean
   - cargo build --no-default-features --features temp
   - cargo clean
-  - cargo build --no-default-features --features testing
-  - cargo clean
-  - cargo build --verbose --all-features
-  - cargo test --verbose --all-features
+  - cargo test --verbose --all
