@@ -1,6 +1,6 @@
 extern crate filesystem;
 
-use std::io::ErrorKind;
+use std::io::{ErrorKind, Read};
 use std::path::{Path, PathBuf};
 
 #[cfg(unix)]
@@ -87,6 +87,9 @@ macro_rules! test_fs {
             make_test!(read_file_into_writes_bytes_to_buffer, $fs);
             make_test!(read_file_into_fails_if_file_does_not_exist, $fs);
 
+            make_test!(open_object_writes_bytes_to_buffer, $fs);
+            make_test!(open_object_fails_if_file_does_not_exist, $fs);
+
             make_test!(create_file_writes_to_new_file, $fs);
             make_test!(create_file_fails_if_file_already_exists, $fs);
 
@@ -123,6 +126,20 @@ macro_rules! test_fs {
             make_test!(len_returns_size_of_file, $fs);
             make_test!(len_returns_size_of_directory, $fs);
             make_test!(len_returns_0_if_node_does_not_exist, $fs);
+
+            make_test!(open_objects_read_independently, $fs);
+            make_test!(open_object_cannot_open_dir, $fs);
+            make_test!(open_object_read_returns_length, $fs);
+            make_test!(open_object_reads_chunked, $fs);
+            make_test!(open_object_reads_ok_beyond_eof, $fs);
+            make_test!(open_object_reads_ok_after_file_deleted, $fs);
+            make_test!(open_object_reads_ok_after_file_overwritten, $fs);
+            make_test!(open_object_reads_ok_after_parent_dir_deleted, $fs);
+            make_test!(open_object_reads_ok_after_file_renamed, $fs);
+            make_test!(open_object_reads_ok_after_parent_dir_renamed, $fs);
+            make_test!(open_object_reads_ok_after_parent_dir_moved, $fs);
+            make_test!(open_object_reads_ok_after_file_updated, $fs);
+            make_test!(open_object_reads_ok_after_file_shrunk, $fs);
 
             #[cfg(unix)]
             make_test!(mode_returns_permissions, $fs);
@@ -626,6 +643,30 @@ fn read_file_into_fails_if_file_does_not_exist<T: FileSystem>(fs: &T, parent: &P
     assert_eq!(result.unwrap_err().kind(), ErrorKind::NotFound);
 }
 
+fn open_object_writes_bytes_to_buffer<T: FileSystem>(fs: &T, parent: &Path) {
+    let path = parent.join("test.txt");
+    let text = "test text";
+
+    fs.write_file(&path, text).unwrap();
+    let mut buf = Vec::new();
+
+    let mut reader = fs.open(&path).unwrap();
+    let result = reader.read_to_end(&mut buf);
+
+    assert!(result.is_ok());
+    assert_eq!(result.unwrap(), text.as_bytes().len());
+    assert_eq!(buf, br"test text");
+}
+
+fn open_object_fails_if_file_does_not_exist<T: FileSystem>(fs: &T, parent: &Path) {
+    let path = parent.join("test.txt");
+
+    let result = fs.open(&path);
+
+    assert!(result.is_err());
+    assert_eq!(result.unwrap_err().kind(), ErrorKind::NotFound);
+}
+
 fn create_file_writes_to_new_file<T: FileSystem>(fs: &T, parent: &Path) {
     let path = parent.join("test_file");
     let result = fs.create_file(&path, "new contents");
@@ -1013,6 +1054,190 @@ fn len_returns_0_if_node_does_not_exist<T: FileSystem>(fs: &T, parent: &Path) {
     let len = fs.len(&path);
 
     assert_eq!(len, 0);
+}
+
+fn open_objects_read_independently<T: FileSystem>(fs: &T, parent: &Path) {
+    let path = parent.join("test.txt");
+    fs.write_file(&path, b"test text").unwrap();
+
+    let mut readers = (fs.open(&path).unwrap(), fs.open(path).unwrap());
+    let mut bufs = (vec![], vec![]);
+    readers.0.read_to_end(&mut bufs.0).unwrap();
+    readers.1.read_to_end(&mut bufs.1).unwrap();
+    assert_eq!(bufs.0, b"test text");
+    assert_eq!(bufs.1, b"test text");
+}
+
+fn open_object_cannot_open_dir<T: FileSystem>(fs: &T, parent: &Path) {
+    let dir = parent.join("test");
+    let reader = fs.open(&dir);
+    assert!(reader.is_err());
+    assert_eq!(reader.unwrap_err().kind(), ErrorKind::NotFound);
+}
+
+fn open_object_read_returns_length<T: FileSystem>(fs: &T, parent: &Path) {
+    let path = parent.join("test.txt");
+    fs.write_file(&path, b"test text").unwrap();
+    let mut reader = fs.open(&path).unwrap();
+
+    let mut buf = vec![];
+    let result = reader.read_to_end(&mut buf);
+    assert!(result.is_ok());
+    assert_eq!(result.unwrap(), 9);
+}
+
+fn open_object_reads_chunked<T: FileSystem>(fs: &T, parent: &Path) {
+    let path = parent.join("test.txt");
+    fs.write_file(&path, b"test text").unwrap();
+    let mut reader = fs.open(&path).unwrap();
+
+    let mut buf = vec![0; 5];
+    reader.read_exact(&mut buf).unwrap();
+    assert_eq!(buf, b"test ");
+
+    let mut buf = vec![];
+    reader.read_to_end(&mut buf).unwrap();
+    assert_eq!(buf, b"text");
+}
+
+fn open_object_reads_ok_after_file_deleted<T: FileSystem>(fs: &T, parent: &Path) {
+    let path = parent.join("test.txt");
+    fs.write_file(&path, b"test text").unwrap();
+    let mut reader = fs.open(&path).unwrap();
+    fs.remove_file(&path).unwrap();
+    // verify file is really gone
+    let result = fs.read_file(&path);
+    assert!(result.is_err());
+    // check that reader can still read it
+    let mut buf = vec![];
+    reader.read_to_end(&mut buf).unwrap();
+    assert_eq!(buf, b"test text");
+}
+
+fn open_object_reads_ok_after_file_overwritten<T: FileSystem>(fs: &T, parent: &Path) {
+    let path = parent.join("test.txt");
+    fs.write_file(&path, b"test text").unwrap();
+    let mut reader = fs.open(&path).unwrap();
+    fs.remove_file(&path).unwrap();
+    fs.write_file(&path, b"the quick brown fox").unwrap();
+    // check that reader still sees the old contents
+    let mut buf = vec![];
+    reader.read_to_end(&mut buf).unwrap();
+    assert_eq!(buf, b"test text");
+}
+
+fn open_object_reads_ok_after_parent_dir_deleted<T: FileSystem>(fs: &T, parent: &Path) {
+    let dir = parent.join("test");
+    fs.create_dir(&dir).unwrap();
+    let path = dir.join("test.txt");
+    fs.write_file(&path, b"test text").unwrap();
+    let mut reader = fs.open(&path).unwrap();
+    fs.remove_dir_all(&dir).unwrap();
+    // verify file is really gone
+    let result = fs.read_file(&path);
+    assert!(result.is_err());
+    // check that reader can still read it
+    let mut buf = vec![];
+    reader.read_to_end(&mut buf).unwrap();
+    assert_eq!(buf, b"test text");
+}
+
+fn open_object_reads_ok_after_file_renamed<T: FileSystem>(fs: &T, parent: &Path) {
+    let path = parent.join("test.txt");
+    fs.write_file(&path, b"test text").unwrap();
+    let mut reader = fs.open(&path).unwrap();
+    let renamed_path = parent.join("test.html");
+    fs.rename(&path, &renamed_path).unwrap();
+    // verify file is really renamed
+    let result = fs.read_file(&path);
+    assert!(result.is_err());
+    let result = fs.read_file(&renamed_path);
+    assert!(result.is_ok());
+    // check that reader can still read it with the reader
+    let mut buf = vec![];
+    reader.read_to_end(&mut buf).unwrap();
+    assert_eq!(buf, b"test text");
+}
+
+fn open_object_reads_ok_after_parent_dir_renamed<T: FileSystem>(fs: &T, parent: &Path) {
+    let dir = parent.join("test");
+    fs.create_dir(&dir).unwrap();
+    let path = dir.join("test.txt");
+    fs.write_file(&path, b"test text").unwrap();
+    let mut reader = fs.open(&path).unwrap();
+    let renamed_dir = parent.join("test2");
+    fs.rename(&dir, &renamed_dir).unwrap();
+    // verify file is really gone
+    let result = fs.read_file(&path);
+    assert!(result.is_err());
+    // check that reader can still read it
+    let mut buf = vec![];
+    reader.read_to_end(&mut buf).unwrap();
+    assert_eq!(buf, b"test text");
+}
+
+fn open_object_reads_ok_after_parent_dir_moved<T: FileSystem>(fs: &T, parent: &Path) {
+    // parent |-> test1 -> test.txt
+    //        |-> test2
+    // after moving test1:
+    // parent |-> test2 -> test1 -> test.txt
+    //
+    let dir1 = parent.join("test1");
+    let dir2 = parent.join("test2");
+    let path = dir1.join("test.txt");
+    fs.create_dir(&dir1).unwrap();
+    fs.create_dir(&dir2).unwrap();
+    fs.write_file(&path, b"test text").unwrap();
+    let mut reader = fs.open(&path).unwrap();
+
+    fs.rename(&dir1, dir2.join("test1")).unwrap();
+    // verify that original file is gone
+    let result = fs.read_file(path);
+    assert!(result.is_err());
+    // check that reader can still read the file
+    let mut buf = vec![];
+    reader.read_to_end(&mut buf).unwrap();
+    assert_eq!(buf, b"test text");
+}
+
+fn open_object_reads_ok_beyond_eof<T: FileSystem>(fs: &T, parent: &Path) {
+    let path = parent.join("test.txt");
+    fs.write_file(&path, b"the quick brown fox").unwrap();
+    let mut reader = fs.open(&path).unwrap();
+    let mut buf = vec![];
+    reader.read_to_end(&mut buf).unwrap();
+
+    let result = reader.read_to_end(&mut buf);
+    assert!(result.is_ok());
+    assert_eq!(result.unwrap(), 0);
+}
+
+fn open_object_reads_ok_after_file_updated<T: FileSystem>(fs: &T, parent: &Path) {
+    let path = parent.join("test.txt");
+    fs.write_file(&path, b"test text").unwrap();
+    let mut reader = fs.open(&path).unwrap();
+    let mut buf = vec![0; 5];
+    reader.read_exact(&mut buf).unwrap();
+    assert_eq!(buf, b"test ");
+
+    fs.write_file(&path, "the quick brown fox").unwrap();
+    let mut buf = vec![];
+    reader.read_to_end(&mut buf).unwrap();
+    assert_eq!(buf, b"uick brown fox");
+}
+
+fn open_object_reads_ok_after_file_shrunk<T: FileSystem>(fs: &T, parent: &Path) {
+    let path = parent.join("test.txt");
+    fs.write_file(&path, b"the quick brown fox").unwrap();
+    let mut reader = fs.open(&path).unwrap();
+    let mut buf = vec![0; 10];
+    reader.read_exact(&mut buf).unwrap();
+    assert_eq!(buf, b"the quick ");
+
+    fs.write_file(&path, "test").unwrap();
+    let mut buf = vec![];
+    reader.read_to_end(&mut buf).unwrap();
+    assert_eq!(buf, b"");
 }
 
 #[cfg(unix)]
