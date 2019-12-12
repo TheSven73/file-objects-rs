@@ -11,6 +11,7 @@ use fake::registry::create_error;
 
 use FileSystem;
 use FileExt;
+use Metadata;
 #[cfg(unix)]
 use UnixFileSystem;
 #[cfg(feature = "temp")]
@@ -349,6 +350,11 @@ impl io::Write for FakeFile {
 }
 
 impl FileExt for FakeFile {
+    type Metadata = FakeMetadata;
+
+    fn metadata(&self) -> Result<Self::Metadata> {
+        Ok(FakeMetadata::new(self.contents.borrow().len()))
+    }
     fn set_len(&self, size: u64) -> Result<()> {
         self.verify_access(AccessMode::Write)?;
         let mut contents = self.contents.borrow_mut();
@@ -360,6 +366,33 @@ impl FileExt for FakeFile {
     }
     fn sync_data(&self) -> Result<()> {
         Ok(())
+    }
+}
+
+#[derive(Debug)]
+pub struct FakeMetadata {
+    len: u64,
+}
+
+impl FakeMetadata {
+    fn new(len: usize) -> Self {
+        FakeMetadata {
+            len: len as u64
+        }
+    }
+}
+
+impl Metadata for FakeMetadata {
+    fn is_dir(&self) -> bool {
+        false
+    }
+
+    fn is_file(&self) -> bool {
+        true
+    }
+
+    fn len(&self) -> u64 {
+        self.len
     }
 }
 

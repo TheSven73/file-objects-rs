@@ -11,7 +11,7 @@ use tempdir;
 
 #[cfg(unix)]
 use UnixFileSystem;
-use {DirEntry, FileSystem, ReadDir, FileExt};
+use {DirEntry, FileSystem, ReadDir, FileExt, Metadata};
 #[cfg(feature = "temp")]
 use {TempDir, TempFileSystem};
 
@@ -220,6 +220,12 @@ impl Write for OsFile {
 }
 
 impl FileExt for OsFile {
+    type Metadata = OsMetadata;
+
+    fn metadata(&self) -> Result<Self::Metadata> {
+        self.0.metadata().map(|m| OsMetadata(m))
+    }
+
     fn set_len(&self, size: u64) -> Result<()> {
         self.0.set_len(size)
     }
@@ -228,6 +234,22 @@ impl FileExt for OsFile {
     }
     fn sync_data(&self) -> Result<()> {
         self.0.sync_data()
+    }
+}
+
+pub struct OsMetadata(fs::Metadata);
+
+impl Metadata for OsMetadata {
+    fn is_dir(&self) -> bool {
+        self.0.is_dir()
+    }
+
+    fn is_file(&self) -> bool {
+        self.0.is_file()
+    }
+
+    fn len(&self) -> u64 {
+        self.0.len()
     }
 }
 

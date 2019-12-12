@@ -197,6 +197,14 @@ pub trait ReadDir<T: DirEntry>: Iterator<Item = Result<T>> {}
 ///
 /// [`fs::File`]: https://doc.rust-lang.org/std/fs/struct.File.html
 pub trait FileExt {
+    type Metadata: Metadata;
+
+    /// Queries metadata about the underlying file.
+    /// This is based on [`fs::File::metadata`].
+    ///
+    /// [`fs::File::metadata`]: https://doc.rust-lang.org/std/fs/struct.File.html#method.metadata
+    fn metadata(&self) -> Result<Self::Metadata>;
+
     /// Truncates or extends the underlying file, updating the size of this file to become size.
     /// This is based on [`fs::File::set_len`]
     ///
@@ -215,6 +223,31 @@ pub trait FileExt {
     ///
     /// [`fs::File::sync_data`]: https://doc.rust-lang.org/std/fs/struct.File.html#method.sync_data
     fn sync_data(&self) -> Result<()>;
+}
+
+/// Metadata information about a file.
+/// This is based on [`fs::Metadata`].
+///
+/// [`fs::Metadata`]: https://doc.rust-lang.org/std/fs/struct.Metadata.html
+#[allow(clippy::len_without_is_empty)]
+pub trait Metadata {
+    /// Returns true if this metadata is for a directory.
+    /// This is based on [`fs::Metadata::is_dir`].
+    ///
+    /// [`fs::Metadata::is_dir`]: https://doc.rust-lang.org/std/fs/struct.Metadata.html#method.is_dir
+    fn is_dir(&self) -> bool;
+
+    /// Returns true if this metadata is for a regular file.
+    /// This is based on [`fs::Metadata::is_file`].
+    ///
+    /// [`fs::Metadata::is_file`]: https://doc.rust-lang.org/std/fs/struct.Metadata.html#method.is_file
+    fn is_file(&self) -> bool;
+
+    /// Returns the size of the file, in bytes, this metadata is for.
+    /// This is based on [`fs::Metadata::len`].
+    ///
+    /// [`fs::Metadata::len`]: https://doc.rust-lang.org/std/fs/struct.Metadata.html#method.len
+    fn len(&self) -> u64;
 }
 
 #[cfg(unix)]
