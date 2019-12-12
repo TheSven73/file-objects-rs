@@ -22,7 +22,7 @@ mod os;
 pub trait FileSystem: Clone + Send + Sync {
     type DirEntry: DirEntry;
     type ReadDir: ReadDir<Self::DirEntry>;
-    type File: io::Read + io::Seek + io::Write + fmt::Debug;
+    type File: io::Read + io::Seek + io::Write + FileExt + fmt::Debug;
 
     /// Attempts to open a file in read-only mode.
     /// This is based on [`fs::File::open`].
@@ -192,6 +192,30 @@ pub trait DirEntry {
 }
 
 pub trait ReadDir<T: DirEntry>: Iterator<Item = Result<T>> {}
+
+/// Provides functions which are not modelled as traits in [`fs::File`]
+///
+/// [`fs::File`]: https://doc.rust-lang.org/std/fs/struct.File.html
+pub trait FileExt {
+    /// Truncates or extends the underlying file, updating the size of this file to become size.
+    /// This is based on [`fs::File::set_len`]
+    ///
+    /// [`fs::File::set_len`]: https://doc.rust-lang.org/std/fs/struct.File.html#method.set_len
+    fn set_len(&self, size: u64) -> Result<()>;
+
+    /// Attempts to sync all OS-internal metadata to disk.
+    /// This is based on [`fs::File::sync_all`]
+    ///
+    /// [`fs::File::sync_all`]: https://doc.rust-lang.org/std/fs/struct.File.html#method.sync_all
+    fn sync_all(&self) -> Result<()>;
+
+    /// This function is similar to sync_all, except that it may not synchronize file metadata
+    /// to the filesystem.
+    /// This is based on [`fs::File::sync_data`]
+    ///
+    /// [`fs::File::sync_data`]: https://doc.rust-lang.org/std/fs/struct.File.html#method.sync_data
+    fn sync_data(&self) -> Result<()>;
+}
 
 #[cfg(unix)]
 pub trait UnixFileSystem {

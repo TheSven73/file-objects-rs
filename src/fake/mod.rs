@@ -10,6 +10,7 @@ use fake::node::SharedContents;
 use fake::registry::create_error;
 
 use FileSystem;
+use FileExt;
 #[cfg(unix)]
 use UnixFileSystem;
 #[cfg(feature = "temp")]
@@ -343,6 +344,21 @@ impl io::Write for FakeFile {
         Ok(buf.len())
     }
     fn flush(&mut self) -> Result<()> {
+        Ok(())
+    }
+}
+
+impl FileExt for FakeFile {
+    fn set_len(&self, size: u64) -> Result<()> {
+        self.verify_access(AccessMode::Write)?;
+        let mut contents = self.contents.borrow_mut();
+        contents.resize(size as usize, 0);
+        Ok(())
+    }
+    fn sync_all(&self) -> Result<()> {
+        Ok(())
+    }
+    fn sync_data(&self) -> Result<()> {
         Ok(())
     }
 }

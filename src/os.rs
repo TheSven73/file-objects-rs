@@ -1,7 +1,7 @@
 use std::env;
 use std::ffi::OsString;
 use std::fs::{self, File, OpenOptions, Permissions};
-use std::io::{Read, Result, Write};
+use std::io::{Read, Result, Write, SeekFrom, Seek};
 #[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
@@ -11,7 +11,7 @@ use tempdir;
 
 #[cfg(unix)]
 use UnixFileSystem;
-use {DirEntry, FileSystem, ReadDir};
+use {DirEntry, FileSystem, ReadDir, FileExt};
 #[cfg(feature = "temp")]
 use {TempDir, TempFileSystem};
 
@@ -48,14 +48,14 @@ impl OsFileSystem {
 impl FileSystem for OsFileSystem {
     type DirEntry = fs::DirEntry;
     type ReadDir = fs::ReadDir;
-    type File = fs::File;
+    type File = OsFile;
 
     fn open<P: AsRef<Path>>(&self, path: P) -> Result<Self::File> {
-        fs::File::open(path)
+        OsFile::open(path)
     }
 
     fn create<P: AsRef<Path>>(&self, path: P) -> Result<Self::File> {
-        fs::File::create(path)
+        OsFile::create(path)
     }
 
     fn current_dir(&self) -> Result<PathBuf> {
@@ -183,6 +183,51 @@ impl FileSystem for OsFileSystem {
 
     fn len<P: AsRef<Path>>(&self, path: P) -> u64 {
         fs::metadata(path.as_ref()).map(|md| md.len()).unwrap_or(0)
+    }
+}
+
+#[derive(Debug)]
+pub struct OsFile(fs::File);
+
+impl OsFile {
+    fn open<P: AsRef<Path>>(path: P) -> Result<Self> {
+        fs::File::open(path).map(|f| OsFile(f))
+    }
+    fn create<P: AsRef<Path>>(path: P) -> Result<Self> {
+        fs::File::create(path).map(|f| OsFile(f))
+    }
+}
+
+impl Read for OsFile {
+    fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
+        self.0.read(buf)
+    }
+}
+
+impl Seek for OsFile {
+    fn seek(&mut self, pos: SeekFrom) -> Result<u64> {
+        self.0.seek(pos)
+    }
+}
+
+impl Write for OsFile {
+    fn write(&mut self, buf: &[u8]) -> Result<usize> {
+        self.0.write(buf)
+    }
+    fn flush(&mut self) -> Result<()> {
+        self.0.flush()
+    }
+}
+
+impl FileExt for OsFile {
+    fn set_len(&self, size: u64) -> Result<()> {
+        self.0.set_len(size)
+    }
+    fn sync_all(&self) -> Result<()> {
+        self.0.sync_all()
+    }
+    fn sync_data(&self) -> Result<()> {
+        self.0.sync_data()
     }
 }
 
