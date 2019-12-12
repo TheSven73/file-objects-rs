@@ -1,12 +1,12 @@
 extern crate filesystem;
 
-use std::io::{ErrorKind, Read, Seek, SeekFrom, Write};
+use std::io::{self, ErrorKind, Read, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
 
 #[cfg(unix)]
 use filesystem::UnixFileSystem;
 use filesystem::{DirEntry, FakeFileSystem, FileSystem, OsFileSystem, TempDir, TempFileSystem};
-use filesystem::{FileExt, Metadata};
+use filesystem::{FileExt, Metadata, OpenOptions};
 
 macro_rules! make_test {
     ($test:ident, $fs:expr) => {
@@ -1742,9 +1742,14 @@ fn create_object_metadata_len_is_immutable<T: FileSystem>(fs: &T, parent: &Path)
     assert_eq!(md.len(), 9);
 }
 
+fn open_writable<T: FileSystem>(fs: &T, path: &Path) -> io::Result<T::File> {
+    let opts = OpenOptions::new().write(true);
+    fs.open_with_options(path, &opts)
+}
+
 fn writable_object_does_not_create_file<T: FileSystem>(fs: &T, parent: &Path) {
     let path = parent.join("test.txt");
-    let result = fs.open_writable(&path);
+    let result = open_writable(fs, &path);
     assert!(result.is_err());
     assert_eq!(result.unwrap_err().kind(), ErrorKind::NotFound);
 }
@@ -1752,7 +1757,7 @@ fn writable_object_does_not_create_file<T: FileSystem>(fs: &T, parent: &Path) {
 fn writable_object_sets_cursor_to_beginning<T: FileSystem>(fs: &T, parent: &Path) {
     let path = parent.join("test.txt");
     fs.write_file(&path, b"test text").unwrap();
-    let mut writer = fs.open_writable(&path).unwrap();
+    let mut writer = open_writable(fs, &path).unwrap();
     let pos = writer.seek(SeekFrom::Current(0)).unwrap();
     assert_eq!(pos, 0);
 }
@@ -1760,7 +1765,7 @@ fn writable_object_sets_cursor_to_beginning<T: FileSystem>(fs: &T, parent: &Path
 fn writable_object_allows_append<T: FileSystem>(fs: &T, parent: &Path) {
     let path = parent.join("test.txt");
     fs.write_file(&path, b"test text").unwrap();
-    let mut writer = fs.open_writable(&path).unwrap();
+    let mut writer = open_writable(fs, &path).unwrap();
     writer.seek(SeekFrom::End(0)).unwrap();
 
     writer.write_all(b"hello").unwrap();
@@ -1772,7 +1777,7 @@ fn writable_object_allows_append<T: FileSystem>(fs: &T, parent: &Path) {
 fn writable_object_truncates<T: FileSystem>(fs: &T, parent: &Path) {
     let path = parent.join("test.txt");
     fs.write_file(&path, b"test text").unwrap();
-    let mut writer = fs.open_writable(&path).unwrap();
+    let mut writer = open_writable(fs, &path).unwrap();
     writer.seek(SeekFrom::End(-4)).unwrap();
 
     writer.write_all(b"hello").unwrap();
@@ -1784,7 +1789,7 @@ fn writable_object_truncates<T: FileSystem>(fs: &T, parent: &Path) {
 fn writable_object_allows_write_short<T: FileSystem>(fs: &T, parent: &Path) {
     let path = parent.join("test.txt");
     fs.write_file(&path, b"test text").unwrap();
-    let mut writer = fs.open_writable(&path).unwrap();
+    let mut writer = open_writable(fs, &path).unwrap();
 
     writer.write_all(b"hello").unwrap();
 
@@ -1795,7 +1800,7 @@ fn writable_object_allows_write_short<T: FileSystem>(fs: &T, parent: &Path) {
 fn writable_object_allows_write_long<T: FileSystem>(fs: &T, parent: &Path) {
     let path = parent.join("test.txt");
     fs.write_file(&path, b"test text").unwrap();
-    let mut writer = fs.open_writable(&path).unwrap();
+    let mut writer = open_writable(fs, &path).unwrap();
 
     writer.write_all(b"the quick brown fox").unwrap();
 
@@ -1806,7 +1811,7 @@ fn writable_object_allows_write_long<T: FileSystem>(fs: &T, parent: &Path) {
 fn writable_object_extends_file<T: FileSystem>(fs: &T, parent: &Path) {
     let path = parent.join("test.txt");
     fs.write_file(&path, b"test text").unwrap();
-    let mut writer = fs.open_writable(&path).unwrap();
+    let mut writer = open_writable(fs, &path).unwrap();
 
     writer.seek(SeekFrom::Start(12)).unwrap();
     writer.write_all(b"hi").unwrap();

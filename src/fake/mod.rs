@@ -108,6 +108,13 @@ impl FakeFileSystem {
 
         f(&mut registry, from, to)
     }
+
+    fn open_writable<P: AsRef<Path>>(&self, path: P) -> Result<FakeFile> {
+        self.apply_mut(path.as_ref(), |r, p| {
+            r.get_file_contents(p)
+                .map(|contents| FakeFile::new_writable(contents.clone()))
+        })
+    }
 }
 
 impl FileSystem for FakeFileSystem {
@@ -126,13 +133,6 @@ impl FileSystem for FakeFileSystem {
             r.write_file(p, &[])?;
             let contents = r.get_file_contents(p)?;
             Ok(FakeFile::new_writable(contents.clone()))
-        })
-    }
-
-    fn open_writable<P: AsRef<Path>>(&self, path: P) -> Result<Self::File> {
-        self.apply_mut(path.as_ref(), |r, p| {
-            r.get_file_contents(p)
-                .map(|contents| FakeFile::new_writable(contents.clone()))
         })
     }
 
