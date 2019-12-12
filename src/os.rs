@@ -62,6 +62,10 @@ impl FileSystem for OsFileSystem {
         OsFile::open_writable(path)
     }
 
+    fn open_with_options<P: AsRef<Path>>(&self, path: P, options: &crate::OpenOptions) -> Result<Self::File> {
+        OsFile::open_with_options(path, options)
+    }
+
     fn current_dir(&self) -> Result<PathBuf> {
         env::current_dir()
     }
@@ -207,6 +211,17 @@ impl OsFile {
     fn open_writable<P: AsRef<Path>>(path: P) -> Result<Self> {
         fs::OpenOptions::new().write(true).open(path)
             .map(|f| OsFile(f))
+    }
+    fn open_with_options<P: AsRef<Path>>(path: P, options: &crate::OpenOptions) -> Result<Self> {
+        fs::OpenOptions::new()
+            .append(options.append)
+            .create(options.create)
+            .create_new(options.create_new)
+            .read(options.read)
+            .truncate(options.truncate)
+            .write(options.write)
+            .open(path)
+        .map(|f| OsFile(f))
     }
 }
 

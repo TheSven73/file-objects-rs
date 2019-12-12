@@ -44,6 +44,17 @@ pub trait FileSystem: Clone + Send + Sync {
     ///
     fn open_writable<P: AsRef<Path>>(&self, path: P) -> Result<Self::File>;
 
+    /// Opens a file at path with the options specified by self.
+    /// This is based on [`fs::OpenOptions::open`].
+    ///
+    /// On the FakeFileSystem, currently the only supported options are:
+    /// - `new().create(true).write(true).truncate(true)`, equivalent to `File::create`
+    /// - `new().read(true)`, equivalent to `File::open`
+    /// - `new().write(true)`
+    ///
+    /// [`fs::OpenOptions::open`]: https://doc.rust-lang.org/std/fs/struct.OpenOptions.html#method.open
+    fn open_with_options<P: AsRef<Path>>(&self, path: P, options: &OpenOptions) -> Result<Self::File>;
+
     /// Returns the current working directory.
     /// This is based on [`std::env::current_dir`].
     ///
@@ -297,4 +308,78 @@ pub trait TempFileSystem: Clone + Send + Sync {
 
     /// Creates a new temporary directory.
     fn temp_dir<S: AsRef<str>>(&self, prefix: S) -> Result<Self::TempDir>;
+}
+
+/// Options and flags which can be used to configure how a file is opened.
+/// This is based on [`fs::OpenOptions`].
+///
+/// [`fs::OpenOptions`]: https://doc.rust-lang.org/std/fs/struct.OpenOptions.html
+#[derive(Clone, Debug, Default)]
+pub struct OpenOptions {
+    append: bool,
+    create: bool,
+    create_new: bool,
+    read: bool,
+    truncate: bool,
+    write: bool,
+}
+
+impl OpenOptions {
+    /// Constructs an OpenOptions with all options set to false.
+    pub fn new() -> Self {
+        Default::default()
+    }
+    /// Sets the option for the append mode.
+    /// This is based on [`fs::OpenOptions::append`].
+    ///
+    /// [`fs::OpenOptions::append`]: https://doc.rust-lang.org/std/fs/struct.OpenOptions.html#method.append
+    pub fn append(mut self, append: bool) -> Self {
+        self.append = append;
+        self
+    }
+
+    /// Sets the option for creating a new file.
+    /// This is based on [`fs::OpenOptions::create`].
+    ///
+    /// [`fs::OpenOptions::create`]: https://doc.rust-lang.org/std/fs/struct.OpenOptions.html#method.create
+    pub fn create(mut self, create: bool) -> Self {
+        self.create = create;
+        self
+    }
+
+    /// Sets the option to always create a new file.
+    /// This is based on [`fs::OpenOptions::create_new`].
+    ///
+    /// [`fs::OpenOptions::create_new`]: https://doc.rust-lang.org/std/fs/struct.OpenOptions.html#method.create_new
+    pub fn create_new(mut self, create_new: bool) -> Self {
+        self.create_new = create_new;
+        self
+    }
+
+    /// Sets the option for read access.
+    /// This is based on [`fs::OpenOptions::read`].
+    ///
+    /// [`fs::OpenOptions::read`]: https://doc.rust-lang.org/std/fs/struct.OpenOptions.html#method.read
+    pub fn read(mut self, read: bool) -> Self {
+        self.read = read;
+        self
+    }
+
+    /// Sets the option for truncating a previous file.
+    /// This is based on [`fs::OpenOptions::truncate`].
+    ///
+    /// [`fs::OpenOptions::truncate`]: https://doc.rust-lang.org/std/fs/struct.OpenOptions.html#method.truncate
+    pub fn truncate(mut self, truncate: bool) -> Self {
+        self.truncate = truncate;
+        self
+    }
+
+    /// Sets the option for write access.
+    /// This is based on [`fs::OpenOptions::write`].
+    ///
+    /// [`fs::OpenOptions::write`]: https://doc.rust-lang.org/std/fs/struct.OpenOptions.html#method.write
+    pub fn write(mut self, write: bool) -> Self {
+        self.write = write;
+        self
+    }
 }

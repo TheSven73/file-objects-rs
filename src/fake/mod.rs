@@ -136,6 +136,16 @@ impl FileSystem for FakeFileSystem {
         })
     }
 
+    fn open_with_options<P: AsRef<Path>>(&self, path: P, o: &crate::OpenOptions)
+                                                                    -> Result<Self::File> {
+        match (o.append, o.create, o.create_new, o.read, o.truncate, o.write) {
+            (false, true, false, false, true, true) => self.create(path),
+            (false, false, false, true, false, false) => self.open(path),
+            (false, false, false, false, false, true) => self.open_writable(path),
+            _ => Err(create_error(ErrorKind::InvalidInput)),
+        }
+    }
+
     fn current_dir(&self) -> Result<PathBuf> {
         let registry = self.registry.lock().unwrap();
         registry.current_dir()
