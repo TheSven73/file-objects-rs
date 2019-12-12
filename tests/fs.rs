@@ -191,6 +191,18 @@ macro_rules! test_fs {
             make_test!(writable_object_allows_write_long, $fs);
             make_test!(writable_object_extends_file, $fs);
 
+            make_test!(canonicalize_ok_if_root, $fs);
+            make_test!(canonicalize_fails_if_empty, $fs);
+            make_test!(canonicalize_dot_is_current_dir, $fs);
+            make_test!(canonicalize_ok_if_relative_path, $fs);
+            make_test!(canonicalize_ok_if_path_ends_in_dotdot, $fs);
+            make_test!(canonicalize_ok_if_file_exists, $fs);
+            make_test!(canonicalize_fails_if_file_doesnt_exist, $fs);
+            make_test!(canonicalize_ok_with_dotdot_if_paths_exist, $fs);
+            make_test!(canonicalize_fails_with_dotdot_if_path_doesnt_exist, $fs);
+            make_test!(canonicalize_cant_go_lower_than_root, $fs);
+            make_test!(canonicalize_fails_if_subpath_is_file, $fs);
+
             #[cfg(unix)]
             make_test!(mode_returns_permissions, $fs);
             #[cfg(unix)]
@@ -1801,6 +1813,106 @@ fn writable_object_extends_file<T: FileSystem>(fs: &T, parent: &Path) {
 
     let contents = fs.read_file(&path).unwrap();
     assert_eq!(contents, b"test text\0\0\0hi");
+}
+
+fn canonicalize_ok_if_file_exists<T: FileSystem>(fs: &T, parent: &Path) {
+    let path = parent.join("test.txt");
+    fs.write_file(&path, "test.txt").unwrap();
+    let result = fs.canonicalize(&path);
+    assert!(result.is_ok());
+    assert_eq!(result.unwrap(), path);
+}
+
+fn canonicalize_ok_if_root<T: FileSystem>(fs: &T, _parent: &Path) {
+    let path = PathBuf::from(std::path::MAIN_SEPARATOR.to_string());
+    let result = fs.canonicalize(&path);
+    assert!(result.is_ok());
+    assert_eq!(result.unwrap(), path);
+}
+
+fn canonicalize_fails_if_empty<T: FileSystem>(fs: &T, _parent: &Path) {
+    let path = PathBuf::from("");
+    let result = fs.canonicalize(&path);
+    assert!(result.is_err());
+    assert_eq!(result.unwrap_err().kind(), ErrorKind::NotFound);
+}
+
+fn canonicalize_dot_is_current_dir<T: FileSystem>(fs: &T, _parent: &Path) {
+    let path = PathBuf::from(".");
+    let result = fs.canonicalize(&path);
+    assert!(result.is_ok());
+    assert_eq!(result.unwrap(), fs.current_dir().unwrap());
+}
+
+fn canonicalize_ok_if_relative_path<T: FileSystem>(fs: &T, parent: &Path) {
+    let save_current_dir = fs.current_dir().unwrap();
+
+    fs.set_current_dir(&parent).unwrap();
+    let result = fs.canonicalize(&PathBuf::from("."));
+    assert!(result.is_ok());
+    assert_eq!(result.unwrap(), parent);
+
+    fs.set_current_dir(save_current_dir).unwrap();
+}
+
+fn canonicalize_ok_if_path_ends_in_dotdot<T: FileSystem>(fs: &T, parent: &Path) {
+    let dir = parent.join("test");
+    fs.create_dir(&dir).unwrap();
+
+    let dotdot = dir.join("..");
+    let result = fs.canonicalize(&dotdot);
+    assert!(result.is_ok());
+    assert_eq!(result.unwrap(), parent);
+}
+
+fn canonicalize_fails_if_file_doesnt_exist<T: FileSystem>(fs: &T, parent: &Path) {
+    let path = parent.join("test.txt");
+    let result = fs.canonicalize(&path);
+    assert!(result.is_err());
+}
+
+fn canonicalize_ok_with_dotdot_if_paths_exist<T: FileSystem>(fs: &T, parent: &Path) {
+    let dir = parent.join("test");
+    fs.create_dir(&dir).unwrap();
+    let path = dir.join("test.txt");
+    fs.write_file(&path, "test text").unwrap();
+
+    let dotdot = dir.join("..").join("test").join("test.txt");
+    let result = fs.canonicalize(&dotdot);
+    assert!(result.is_ok());
+    assert_eq!(result.unwrap(), path);
+}
+
+fn canonicalize_fails_with_dotdot_if_path_doesnt_exist<T: FileSystem>(fs: &T, parent: &Path) {
+    let dir = parent.join("test");
+    fs.create_dir(&dir).unwrap();
+    let path = dir.join("test.txt");
+    fs.write_file(&path, "test text").unwrap();
+
+    let dotdot = dir.join("does_not_exist").join("..").join("test.txt");
+    let result = fs.canonicalize(&dotdot);
+    assert!(result.is_err());
+}
+
+fn canonicalize_cant_go_lower_than_root<T: FileSystem>(fs: &T, parent: &Path) {
+    let num_dirs = parent.iter().count();
+    let dotdot_root: PathBuf = std::iter::repeat("..").take(num_dirs * 2)
+                        .collect();
+    let root = parent.iter().nth(0).unwrap();
+    let result = fs.canonicalize(&dotdot_root);
+    assert!(result.is_ok());
+    assert_eq!(result.unwrap(), root);
+}
+
+fn canonicalize_fails_if_subpath_is_file<T: FileSystem>(fs: &T, parent: &Path) {
+    let dir = parent.join("test");
+    fs.create_dir(&dir).unwrap();
+    let path = dir.join("test.txt");
+    fs.write_file(&path, "test text").unwrap();
+
+    let dotdot = parent.join("test/test.txt/../test.txt");
+    let result = fs.canonicalize(&dotdot);
+    assert!(result.is_err());
 }
 
 #[cfg(unix)]
