@@ -1,6 +1,6 @@
 extern crate filesystem;
 
-use std::io::{ErrorKind, Read, Seek, SeekFrom};
+use std::io::{ErrorKind, Read, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
 
 #[cfg(unix)]
@@ -146,6 +146,30 @@ macro_rules! test_fs {
             make_test!(open_object_can_seek_from_end_then_read, $fs);
             make_test!(open_object_fails_if_seeks_before_byte_0, $fs);
             make_test!(open_object_can_seek_and_read_beyond_eof, $fs);
+
+            make_test!(create_objects_write_independently, $fs);
+            make_test!(create_object_cannot_overwrite_dir, $fs);
+            make_test!(create_object_writes_chunked, $fs);
+            make_test!(create_object_writes_ok_beyond_eof, $fs);
+            make_test!(create_object_writes_ok_after_file_deleted, $fs);
+            make_test!(create_object_writes_ok_after_file_overwritten, $fs);
+            make_test!(create_object_writes_ok_after_parent_dir_deleted, $fs);
+            make_test!(create_object_writes_ok_after_file_renamed, $fs);
+            make_test!(create_object_writes_ok_after_parent_dir_renamed, $fs);
+            make_test!(create_object_writes_ok_after_parent_dir_moved, $fs);
+            make_test!(create_object_writes_ok_after_file_updated_short, $fs);
+            make_test!(create_object_writes_ok_after_file_updated_long, $fs);
+            make_test!(create_object_writes_ok_after_file_shrunk, $fs);
+
+            make_test!(create_object_can_seek_then_overwrite, $fs);
+            make_test!(create_object_can_seek_then_overwrite_and_extend, $fs);
+            make_test!(create_object_can_seek_then_extend, $fs);
+
+            make_test!(create_object_writes_to_new_file, $fs);
+            make_test!(create_object_fails_if_file_is_readonly, $fs);
+
+            make_test!(open_object_cannot_write, $fs);
+            make_test!(create_object_cannot_read, $fs);
 
             #[cfg(unix)]
             make_test!(mode_returns_permissions, $fs);
@@ -483,6 +507,30 @@ fn read_dir_fails_if_node_is_a_file<T: FileSystem>(fs: &T, parent: &Path) {
         Ok(_) => panic!("should be an err"),
         Err(err) => assert_eq!(err.kind(), ErrorKind::Other),
     }
+}
+
+fn create_object_writes_to_new_file<T: FileSystem>(fs: &T, parent: &Path) {
+    let path = parent.join("new_file");
+    let mut writer = fs.create(&path).unwrap();
+    let result = writer.write_all(b"new contents");
+
+    assert!(result.is_ok());
+
+    let contents = fs.read_file(path).unwrap();
+
+    assert_eq!(&contents, b"new contents");
+}
+
+fn create_object_fails_if_file_is_readonly<T: FileSystem>(fs: &T, parent: &Path) {
+    let path = parent.join("test_file");
+
+    fs.create_file(&path, "").unwrap();
+    fs.set_readonly(&path, true).unwrap();
+
+    let result = fs.create(&path);
+
+    assert!(result.is_err());
+    assert_eq!(result.unwrap_err().kind(), ErrorKind::PermissionDenied);
 }
 
 fn write_file_writes_to_new_file<T: FileSystem>(fs: &T, parent: &Path) {
@@ -1331,6 +1379,238 @@ fn open_object_can_seek_and_read_beyond_eof<T: FileSystem>(fs: &T, parent: &Path
     let result = reader.read_to_end(&mut buf);
     assert!(result.is_ok());
     assert_eq!(result.unwrap(), 0);
+}
+
+fn create_objects_write_independently<T: FileSystem>(fs: &T, parent: &Path) {
+    let path = parent.join("test.txt");
+
+    let mut writers = (fs.create(&path).unwrap(), fs.create(&path).unwrap());
+    let buf = b"the quick brown fox";
+    writers.0.write_all(buf).unwrap();
+    let read_buf1 = fs.read_file(&path).unwrap();
+    writers.1.write_all(buf).unwrap();
+    let read_buf2 = fs.read_file(&path).unwrap();
+    assert_eq!(read_buf1, read_buf2);
+}
+
+fn create_object_cannot_overwrite_dir<T: FileSystem>(fs: &T, parent: &Path) {
+    let dir = parent.join("test");
+    fs.create_dir(&dir).unwrap();
+    let writer = fs.create(&dir);
+    assert!(writer.is_err());
+    assert_eq!(writer.unwrap_err().kind(), ErrorKind::Other);
+}
+
+fn create_object_writes_chunked<T: FileSystem>(fs: &T, parent: &Path) {
+    let path = parent.join("test.txt");
+    let mut writer = fs.create(&path).unwrap();
+    writer.write_all(b"test").unwrap();
+    writer.write_all(b" text").unwrap();
+    let contents = fs.read_file(&path).unwrap();
+    assert_eq!(contents, b"test text");
+}
+
+fn create_object_writes_ok_beyond_eof<T: FileSystem>(fs: &T, parent: &Path) {
+    let path = parent.join("test.txt");
+    let mut writer = fs.create(&path).unwrap();
+    writer.write_all(b"test text").unwrap();
+
+    fs.write_file(&path, b"").unwrap();
+    writer.write_all(b"test text").unwrap();
+    let buf = fs.read_file(&path).unwrap();
+    assert_eq!(buf, b"\0\0\0\0\0\0\0\0\0test text");
+}
+
+fn create_object_writes_ok_after_file_deleted<T: FileSystem>(fs: &T, parent: &Path) {
+    let path = parent.join("test.txt");
+    let mut writer = fs.create(&path).unwrap();
+    writer.write_all(b"test text").unwrap();
+
+    fs.remove_file(&path).unwrap();
+    let result = writer.write_all(b"test text");
+    assert!(result.is_ok());
+}
+
+fn create_object_writes_ok_after_file_overwritten<T: FileSystem>(fs: &T, parent: &Path) {
+    let path = parent.join("test.txt");
+    let mut writer = fs.create(&path).unwrap();
+    writer.write_all(b"test text").unwrap();
+
+    fs.write_file(&path, b"the quick brown fox").unwrap();
+    let result = writer.write_all(b"test text");
+    assert!(result.is_ok());
+}
+
+fn create_object_writes_ok_after_parent_dir_deleted<T: FileSystem>(fs: &T, parent: &Path) {
+    let dir = parent.join("test");
+    let path = dir.join("test.txt");
+    fs.create_dir(&dir).unwrap();
+    let mut writer = fs.create(&path).unwrap();
+    writer.write_all(b"test text").unwrap();
+
+    fs.remove_dir_all(&dir).unwrap();
+    let result = writer.write_all(b"test text");
+    assert!(result.is_ok());
+}
+
+fn create_object_writes_ok_after_file_renamed<T: FileSystem>(fs: &T, parent: &Path) {
+    let path = parent.join("test.txt");
+    let renamed_path = parent.join("test.html");
+    let mut writer = fs.create(&path).unwrap();
+    writer.write_all(b"test text").unwrap();
+
+    fs.rename(&path, &renamed_path).unwrap();
+    let result = writer.write_all(b"test text");
+    assert!(result.is_ok());
+
+    let contents = fs.read_file(&renamed_path).unwrap();
+    assert_eq!(contents, b"test texttest text");
+}
+
+fn create_object_writes_ok_after_parent_dir_renamed<T: FileSystem>(fs: &T, parent: &Path) {
+    let dir = parent.join("test");
+    let renamed_dir = parent.join("test2");
+    fs.create_dir(&dir).unwrap();
+    let path = dir.join("test.txt");
+    let mut writer = fs.create(&path).unwrap();
+    writer.write_all(b"test text").unwrap();
+
+    fs.rename(&dir, &renamed_dir).unwrap();
+    let result = writer.write_all(b"test text");
+    assert!(result.is_ok());
+
+    let contents = fs.read_file(renamed_dir.join("test.txt")).unwrap();
+    assert_eq!(contents, b"test texttest text");
+}
+
+fn create_object_writes_ok_after_parent_dir_moved<T: FileSystem>(fs: &T, parent: &Path) {
+    // parent |-> test1 -> test.txt
+    //        |-> test2
+    // after moving test1:
+    // parent |-> test2 -> test1 -> test.txt
+    //
+    let dir1 = parent.join("test1");
+    let dir2 = parent.join("test2");
+    let path = dir1.join("test.txt");
+    fs.create_dir(&dir1).unwrap();
+    fs.create_dir(&dir2).unwrap();
+    let mut writer = fs.create(&path).unwrap();
+    writer.write_all(b"test text").unwrap();
+
+    let new_root = dir2.join("test1");
+    fs.rename(&dir1, &new_root).unwrap();
+    let result = writer.write_all(b"test text");
+    assert!(result.is_ok());
+
+    let contents = fs.read_file(new_root.join("test.txt")).unwrap();
+    assert_eq!(contents, b"test texttest text");
+}
+
+fn create_object_writes_ok_after_file_updated_long<T: FileSystem>(fs: &T, parent: &Path) {
+    let path = parent.join("test.txt");
+    let mut writer = fs.create(&path).unwrap();
+    writer.write_all(b"test text").unwrap();
+
+    fs.write_file(&path, b"the quick brown fox").unwrap();
+    let result = writer.write_all(b"test text");
+    assert!(result.is_ok());
+
+    let contents = fs.read_file(&path).unwrap();
+    assert_eq!(contents, b"the quicktest textx");
+}
+
+fn create_object_writes_ok_after_file_updated_short<T: FileSystem>(fs: &T, parent: &Path) {
+    let path = parent.join("test.txt");
+    let mut writer = fs.create(&path).unwrap();
+    writer.write_all(b"test text").unwrap();
+
+    fs.write_file(&path, b"the quick brown").unwrap();
+    let result = writer.write_all(b"test text");
+    assert!(result.is_ok());
+
+    let contents = fs.read_file(&path).unwrap();
+    assert_eq!(contents, b"the quicktest text");
+}
+
+fn create_object_writes_ok_after_file_shrunk<T: FileSystem>(fs: &T, parent: &Path) {
+    let path = parent.join("test.txt");
+    let mut writer = fs.create(&path).unwrap();
+    writer.write_all(b"test text").unwrap();
+
+    fs.write_file(&path, b"hello").unwrap();
+    let result = writer.write_all(b"test text");
+    assert!(result.is_ok());
+
+    let contents = fs.read_file(&path).unwrap();
+    assert_eq!(contents, b"hello\0\0\0\0test text");
+}
+
+fn create_object_can_seek_then_overwrite<T: FileSystem>(fs: &T, parent: &Path) {
+    let path = parent.join("test.txt");
+    let mut writer = fs.create(&path).unwrap();
+    writer.write_all(b"the quick brown fox").unwrap();
+
+    writer.seek(SeekFrom::Start(5)).unwrap();
+    let cur = writer.seek(SeekFrom::Current(0)).unwrap();
+    assert_eq!(cur, 5);
+
+    let result = writer.write_all(b"hello");
+    assert!(result.is_ok());
+
+    let buf = fs.read_file(&path).unwrap();
+    assert_eq!(buf, b"the qhellobrown fox");
+}
+
+fn create_object_can_seek_then_overwrite_and_extend<T: FileSystem>(fs: &T, parent: &Path) {
+    let path = parent.join("test.txt");
+    let mut writer = fs.create(&path).unwrap();
+    writer.write_all(b"test text").unwrap();
+
+    writer.seek(SeekFrom::Start(5)).unwrap();
+    let cur = writer.seek(SeekFrom::Current(0)).unwrap();
+    assert_eq!(cur, 5);
+
+    let result = writer.write_all(b"the quick brown fox");
+    assert!(result.is_ok());
+
+    let buf = fs.read_file(&path).unwrap();
+    assert_eq!(buf, b"test the quick brown fox");
+}
+
+fn create_object_can_seek_then_extend<T: FileSystem>(fs: &T, parent: &Path) {
+    let path = parent.join("test.txt");
+    let mut writer = fs.create(&path).unwrap();
+    writer.write_all(b"test text").unwrap();
+
+    writer.seek(SeekFrom::Start(12)).unwrap();
+    let cur = writer.seek(SeekFrom::Current(0)).unwrap();
+    assert_eq!(cur, 12);
+
+    let result = writer.write_all(b"test");
+    assert!(result.is_ok());
+
+    let buf = fs.read_file(&path).unwrap();
+    assert_eq!(buf, b"test text\0\0\0test");
+}
+
+fn open_object_cannot_write<T: FileSystem>(fs: &T, parent: &Path) {
+    let path = parent.join("test.txt");
+    fs.create_file(&path, vec![]).unwrap();
+
+    let mut reader = fs.open(&path).unwrap();
+    let result = reader.write(b"the quick brown fox");
+    assert!(result.is_err());
+    assert_eq!(result.unwrap_err().kind(), ErrorKind::Other);
+}
+
+fn create_object_cannot_read<T: FileSystem>(fs: &T, parent: &Path) {
+    let path = parent.join("test.txt");
+
+    let mut writer = fs.create(&path).unwrap();
+    let mut buf = vec![];
+    let result = writer.read_to_end(&mut buf);
+    assert!(result.is_err());
+    assert_eq!(result.unwrap_err().kind(), ErrorKind::Other);
 }
 
 #[cfg(unix)]
