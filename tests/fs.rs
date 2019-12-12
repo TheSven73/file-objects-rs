@@ -183,6 +183,14 @@ macro_rules! test_fs {
             make_test!(create_object_metadata_has_correct_len, $fs);
             make_test!(create_object_metadata_len_is_immutable, $fs);
 
+            make_test!(writable_object_does_not_create_file, $fs);
+            make_test!(writable_object_sets_cursor_to_beginning, $fs);
+            make_test!(writable_object_allows_append, $fs);
+            make_test!(writable_object_truncates, $fs);
+            make_test!(writable_object_allows_write_short, $fs);
+            make_test!(writable_object_allows_write_long, $fs);
+            make_test!(writable_object_extends_file, $fs);
+
             #[cfg(unix)]
             make_test!(mode_returns_permissions, $fs);
             #[cfg(unix)]
@@ -1720,6 +1728,79 @@ fn create_object_metadata_len_is_immutable<T: FileSystem>(fs: &T, parent: &Path)
 
     writer.write_all(b"hi").unwrap();
     assert_eq!(md.len(), 9);
+}
+
+fn writable_object_does_not_create_file<T: FileSystem>(fs: &T, parent: &Path) {
+    let path = parent.join("test.txt");
+    let result = fs.open_writable(&path);
+    assert!(result.is_err());
+    assert_eq!(result.unwrap_err().kind(), ErrorKind::NotFound);
+}
+
+fn writable_object_sets_cursor_to_beginning<T: FileSystem>(fs: &T, parent: &Path) {
+    let path = parent.join("test.txt");
+    fs.write_file(&path, b"test text").unwrap();
+    let mut writer = fs.open_writable(&path).unwrap();
+    let pos = writer.seek(SeekFrom::Current(0)).unwrap();
+    assert_eq!(pos, 0);
+}
+
+fn writable_object_allows_append<T: FileSystem>(fs: &T, parent: &Path) {
+    let path = parent.join("test.txt");
+    fs.write_file(&path, b"test text").unwrap();
+    let mut writer = fs.open_writable(&path).unwrap();
+    writer.seek(SeekFrom::End(0)).unwrap();
+
+    writer.write_all(b"hello").unwrap();
+
+    let contents = fs.read_file(&path).unwrap();
+    assert_eq!(contents, b"test texthello");
+}
+
+fn writable_object_truncates<T: FileSystem>(fs: &T, parent: &Path) {
+    let path = parent.join("test.txt");
+    fs.write_file(&path, b"test text").unwrap();
+    let mut writer = fs.open_writable(&path).unwrap();
+    writer.seek(SeekFrom::End(-4)).unwrap();
+
+    writer.write_all(b"hello").unwrap();
+
+    let contents = fs.read_file(&path).unwrap();
+    assert_eq!(String::from_utf8(contents).unwrap(), "test hello");
+}
+
+fn writable_object_allows_write_short<T: FileSystem>(fs: &T, parent: &Path) {
+    let path = parent.join("test.txt");
+    fs.write_file(&path, b"test text").unwrap();
+    let mut writer = fs.open_writable(&path).unwrap();
+
+    writer.write_all(b"hello").unwrap();
+
+    let contents = fs.read_file(&path).unwrap();
+    assert_eq!(contents, b"hellotext");
+}
+
+fn writable_object_allows_write_long<T: FileSystem>(fs: &T, parent: &Path) {
+    let path = parent.join("test.txt");
+    fs.write_file(&path, b"test text").unwrap();
+    let mut writer = fs.open_writable(&path).unwrap();
+
+    writer.write_all(b"the quick brown fox").unwrap();
+
+    let contents = fs.read_file(&path).unwrap();
+    assert_eq!(contents, b"the quick brown fox");
+}
+
+fn writable_object_extends_file<T: FileSystem>(fs: &T, parent: &Path) {
+    let path = parent.join("test.txt");
+    fs.write_file(&path, b"test text").unwrap();
+    let mut writer = fs.open_writable(&path).unwrap();
+
+    writer.seek(SeekFrom::Start(12)).unwrap();
+    writer.write_all(b"hi").unwrap();
+
+    let contents = fs.read_file(&path).unwrap();
+    assert_eq!(contents, b"test text\0\0\0hi");
 }
 
 #[cfg(unix)]
