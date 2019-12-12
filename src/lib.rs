@@ -37,6 +37,13 @@ pub trait FileSystem: Clone + Send + Sync {
     /// [`fs::File::create`]: https://doc.rust-lang.org/std/fs/struct.File.html#method.create
     fn create<P: AsRef<Path>>(&self, path: P) -> Result<Self::File>;
 
+    /// Opens a file in write-only mode.
+    /// This function will not create a file if it does not exist, but it will not truncate it
+    /// if it does.
+    /// This is equivalent to [`fs::OpenOptions::new().write(true).open`].
+    ///
+    fn open_writable<P: AsRef<Path>>(&self, path: P) -> Result<Self::File>;
+
     /// Returns the current working directory.
     /// This is based on [`std::env::current_dir`].
     ///

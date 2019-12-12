@@ -118,14 +118,21 @@ impl FileSystem for FakeFileSystem {
     fn open<P: AsRef<Path>>(&self, path: P) -> Result<Self::File> {
         self.apply(path.as_ref(), |r, p|
             r.get_file_contents(p)
-            .map(|contents| FakeFile::open(contents.clone())))
+            .map(|contents| FakeFile::new_readable(contents.clone())))
     }
 
     fn create<P: AsRef<Path>>(&self, path: P) -> Result<Self::File> {
         self.apply_mut(path.as_ref(), |r, p| {
             r.write_file(p, &[])?;
             let contents = r.get_file_contents(p)?;
-            Ok(FakeFile::create(contents.clone()))
+            Ok(FakeFile::new_writable(contents.clone()))
+        })
+    }
+
+    fn open_writable<P: AsRef<Path>>(&self, path: P) -> Result<Self::File> {
+        self.apply_mut(path.as_ref(), |r, p| {
+            r.get_file_contents(p)
+                .map(|contents| FakeFile::new_writable(contents.clone()))
         })
     }
 
@@ -277,10 +284,10 @@ impl FakeFile {
             access_mode,
         }
     }
-    fn open(contents: SharedContents) -> Self {
+    fn new_readable(contents: SharedContents) -> Self {
         FakeFile::new(contents, AccessMode::Read)
     }
-    fn create(contents: SharedContents) -> Self {
+    fn new_writable(contents: SharedContents) -> Self {
         FakeFile::new(contents, AccessMode::Write)
     }
     fn verify_access(&self, access_mode: AccessMode) -> Result<()> {

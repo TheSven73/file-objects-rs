@@ -58,6 +58,10 @@ impl FileSystem for OsFileSystem {
         OsFile::create(path)
     }
 
+    fn open_writable<P: AsRef<Path>>(&self, path: P) -> Result<Self::File> {
+        OsFile::open_writable(path)
+    }
+
     fn current_dir(&self) -> Result<PathBuf> {
         env::current_dir()
     }
@@ -195,6 +199,10 @@ impl OsFile {
     }
     fn create<P: AsRef<Path>>(path: P) -> Result<Self> {
         fs::File::create(path).map(|f| OsFile(f))
+    }
+    fn open_writable<P: AsRef<Path>>(path: P) -> Result<Self> {
+        fs::OpenOptions::new().write(true).open(path)
+            .map(|f| OsFile(f))
     }
 }
 
