@@ -191,6 +191,13 @@ pub trait FileSystem: Clone + Send + Sync {
     /// Returns the length of the node at the path
     /// or 0 if the node does not exist.
     fn len<P: AsRef<Path>>(&self, path: P) -> u64;
+
+    /// Returns the canonical, absolute form of a path with all intermediate components
+    /// normalized and symbolic links resolved.
+    /// This is based on [`fs::canonicalize`].
+    ///
+    /// [`fs::canonicalize`]: https://doc.rust-lang.org/std/fs/fn.canonicalize.html
+    fn canonicalize<P: AsRef<Path>>(&self, path: P) -> Result<PathBuf>;
 }
 
 pub trait DirEntry {

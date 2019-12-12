@@ -188,6 +188,10 @@ impl FileSystem for OsFileSystem {
     fn len<P: AsRef<Path>>(&self, path: P) -> u64 {
         fs::metadata(path.as_ref()).map(|md| md.len()).unwrap_or(0)
     }
+
+    fn canonicalize<P: AsRef<Path>>(&self, path: P) -> Result<PathBuf> {
+        fs::canonicalize(path)
+    }
 }
 
 #[derive(Debug)]

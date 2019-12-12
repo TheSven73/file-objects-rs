@@ -347,6 +347,26 @@ impl Registry {
 
         Ok(())
     }
+
+    pub fn canonicalize_path(&self, path: &Path) -> Result<PathBuf> {
+        let mut sane_path = PathBuf::new();
+        let last_idx = path.iter().count() - 1;
+        for (idx, chunk) in path.iter().enumerate() {
+            if chunk == ".." {
+                sane_path.pop();
+            } else {
+                sane_path.push(chunk);
+            }
+            if idx == last_idx {
+                // final component must exist
+                self.get(&sane_path)?;
+            } else {
+                // non-final component must be a directory
+                self.get_dir(&sane_path)?;
+            }
+        }
+        Ok(sane_path)
+    }
 }
 
 pub fn create_error(kind: ErrorKind) -> Error {

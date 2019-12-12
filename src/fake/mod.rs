@@ -259,6 +259,15 @@ impl FileSystem for FakeFileSystem {
     fn len<P: AsRef<Path>>(&self, path: P) -> u64 {
         self.apply(path.as_ref(), |r, p| r.len(p))
     }
+
+    fn canonicalize<P: AsRef<Path>>(&self, path: P) -> Result<PathBuf> {
+        let path = path.as_ref();
+        // special case: empty paths must always fail
+        if path.as_os_str().is_empty() {
+            return Err(create_error(ErrorKind::NotFound));
+        }
+        self.apply(path, |r, p| r.canonicalize_path(p))
+    }
 }
 
 /// How a `fs::File` is accessed.
