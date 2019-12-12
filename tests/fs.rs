@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 #[cfg(unix)]
 use filesystem::UnixFileSystem;
 use filesystem::{DirEntry, FakeFileSystem, FileSystem, OsFileSystem, TempDir, TempFileSystem};
-use filesystem::FileExt;
+use filesystem::{FileExt, Metadata};
 
 macro_rules! make_test {
     ($test:ident, $fs:expr) => {
@@ -175,6 +175,13 @@ macro_rules! test_fs {
             make_test!(set_len_on_create_object_truncates_file, $fs);
             make_test!(set_len_on_create_object_extends_file, $fs);
             make_test!(set_len_on_create_object_doesnt_change_cursor, $fs);
+
+            make_test!(open_object_metadata_is_file, $fs);
+            make_test!(open_object_metadata_has_correct_len, $fs);
+            make_test!(open_object_metadata_len_is_immutable, $fs);
+            make_test!(create_object_metadata_is_file, $fs);
+            make_test!(create_object_metadata_has_correct_len, $fs);
+            make_test!(create_object_metadata_len_is_immutable, $fs);
 
             #[cfg(unix)]
             make_test!(mode_returns_permissions, $fs);
@@ -1652,6 +1659,67 @@ fn set_len_on_create_object_doesnt_change_cursor<T: FileSystem>(fs: &T, parent: 
 
     let pos = writer.seek(SeekFrom::Current(0)).unwrap();
     assert_eq!(pos, 0);
+}
+
+fn open_object_metadata_is_file<T: FileSystem>(fs: &T, parent: &Path) {
+    let path = parent.join("test.txt");
+    fs.write_file(&path, b"test text").unwrap();
+    let reader = fs.open(&path).unwrap();
+
+    let md = reader.metadata().unwrap();
+    assert!(md.is_file());
+    assert!(!md.is_dir());
+}
+
+fn open_object_metadata_has_correct_len<T: FileSystem>(fs: &T, parent: &Path) {
+    let path = parent.join("test.txt");
+    fs.write_file(&path, b"test text").unwrap();
+    let reader = fs.open(&path).unwrap();
+
+    let md = reader.metadata().unwrap();
+    assert_eq!(md.len(), 9);
+}
+
+fn open_object_metadata_len_is_immutable<T: FileSystem>(fs: &T, parent: &Path) {
+    let path = parent.join("test.txt");
+    fs.write_file(&path, b"test text").unwrap();
+    let reader = fs.open(&path).unwrap();
+    let md = reader.metadata().unwrap();
+
+    assert_eq!(md.len(), 9);
+
+    fs.write_file(&path, b"hi").unwrap();
+    assert_eq!(md.len(), 9);
+}
+
+fn create_object_metadata_is_file<T: FileSystem>(fs: &T, parent: &Path) {
+    let path = parent.join("test.txt");
+    let writer = fs.create(&path).unwrap();
+
+    let md = writer.metadata().unwrap();
+    assert!(md.is_file());
+    assert!(!md.is_dir());
+}
+
+fn create_object_metadata_has_correct_len<T: FileSystem>(fs: &T, parent: &Path) {
+    let path = parent.join("test.txt");
+    let mut writer = fs.create(&path).unwrap();
+    writer.write_all(b"test text").unwrap();
+
+    let md = writer.metadata().unwrap();
+    assert_eq!(md.len(), 9);
+}
+
+fn create_object_metadata_len_is_immutable<T: FileSystem>(fs: &T, parent: &Path) {
+    let path = parent.join("test.txt");
+    let mut writer = fs.create(&path).unwrap();
+    writer.write_all(b"test text").unwrap();
+    let md = writer.metadata().unwrap();
+
+    assert_eq!(md.len(), 9);
+
+    writer.write_all(b"hi").unwrap();
+    assert_eq!(md.len(), 9);
 }
 
 #[cfg(unix)]
