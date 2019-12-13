@@ -225,15 +225,6 @@ impl Registry {
         })
     }
 
-    pub fn len(&self, path: &Path) -> u64 {
-        self.get(path)
-            .map(|node| match node {
-                Node::File(ref file) => file.contents.borrow().len() as u64,
-                Node::Dir(_) => 4096,
-            })
-            .unwrap_or(0)
-    }
-
     fn get(&self, path: &Path) -> Result<&Node> {
         self.files
             .get(path)

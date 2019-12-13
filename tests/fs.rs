@@ -125,8 +125,6 @@ macro_rules! test_fs {
             make_test!(set_readonly_fails_if_node_does_not_exist, $fs);
 
             make_test!(len_returns_size_of_file, $fs);
-            make_test!(len_returns_size_of_directory, $fs);
-            make_test!(len_returns_0_if_node_does_not_exist, $fs);
 
             make_test!(open_objects_read_independently, $fs);
             make_test!(open_object_cannot_open_dir, $fs);
@@ -1181,7 +1179,7 @@ fn len_returns_size_of_file<T: FileSystem>(fs: &T, parent: &Path) {
 
     assert!(result.is_ok());
 
-    let len = fs.len(&path);
+    let len = fs.open(&path).unwrap().metadata().unwrap().len();
 
     assert_eq!(len, 0);
 
@@ -1189,27 +1187,9 @@ fn len_returns_size_of_file<T: FileSystem>(fs: &T, parent: &Path) {
 
     assert!(result.is_ok());
 
-    let len = fs.len(&path);
+    let len = fs.open(&path).unwrap().metadata().unwrap().len();
 
     assert_eq!(len, 8);
-}
-
-fn len_returns_size_of_directory<T: FileSystem>(fs: &T, parent: &Path) {
-    let path = parent.join("directory");
-    let result = fs.create_dir(&path);
-
-    assert!(result.is_ok());
-
-    let len = fs.len(&path);
-
-    assert_ne!(len, 0);
-}
-
-fn len_returns_0_if_node_does_not_exist<T: FileSystem>(fs: &T, parent: &Path) {
-    let path = parent.join("does-not-exist");
-    let len = fs.len(&path);
-
-    assert_eq!(len, 0);
 }
 
 fn open_objects_read_independently<T: FileSystem>(fs: &T, parent: &Path) {

@@ -268,10 +268,6 @@ impl FileSystem for FakeFileSystem {
         self.apply_mut(path.as_ref(), |r, p| r.set_readonly(p, readonly))
     }
 
-    fn len<P: AsRef<Path>>(&self, path: P) -> u64 {
-        self.apply(path.as_ref(), |r, p| r.len(p))
-    }
-
     fn canonicalize<P: AsRef<Path>>(&self, path: P) -> Result<PathBuf> {
         let path = path.as_ref();
         // special case: empty paths must always fail
