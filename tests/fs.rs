@@ -223,6 +223,37 @@ macro_rules! test_fs {
 test_fs!(os, OsFileSystem::new);
 test_fs!(fake, FakeFileSystem::new);
 
+// Used to be part of the public API.
+// Keep around for the tests.
+fn read_file<T: FileSystem, P: AsRef<Path>>(fs: &T, path: P) -> io::Result<Vec<u8>> {
+    let mut reader = fs.open(path)?;
+    let mut result = vec![];
+    reader.read_to_end(&mut result)?;
+    Ok(result)
+}
+
+// Used to be part of the public API.
+// Keep around for the tests.
+fn read_file_to_string<T: FileSystem, P: AsRef<Path>>(fs: &T, path: P) -> io::Result<String> {
+    let mut reader = fs.open(path)?;
+    let mut result = vec![];
+    reader.read_to_end(&mut result)?;
+    String::from_utf8(result)
+        .map_err(|_| io::Error::new(ErrorKind::InvalidData, "Invalid Data"))
+}
+
+// Used to be part of the public API.
+// Keep around for the tests.
+fn read_file_into<T, P, B>(fs: &T, path: P, mut buf: B) -> io::Result<usize>
+        where
+            T: FileSystem,
+            P: AsRef<Path>,
+            B: AsMut<Vec<u8>> {
+
+    let mut reader = fs.open(path)?;
+    reader.read_to_end(buf.as_mut())
+}
+
 fn set_current_dir_fails_if_node_does_not_exists<T: FileSystem>(fs: &T, parent: &Path) {
     let path = parent.join("does_not_exist");
 
@@ -548,7 +579,7 @@ fn create_object_writes_to_new_file<T: FileSystem>(fs: &T, parent: &Path) {
 
     assert!(result.is_ok());
 
-    let contents = fs.read_file(path).unwrap();
+    let contents = read_file(fs, path).unwrap();
 
     assert_eq!(&contents, b"new contents");
 }
@@ -571,7 +602,7 @@ fn write_file_writes_to_new_file<T: FileSystem>(fs: &T, parent: &Path) {
 
     assert!(result.is_ok());
 
-    let contents = String::from_utf8(fs.read_file(path).unwrap()).unwrap();
+    let contents = String::from_utf8(read_file(fs, path).unwrap()).unwrap();
 
     assert_eq!(&contents, "new contents");
 }
@@ -585,7 +616,7 @@ fn write_file_overwrites_contents_of_existing_file<T: FileSystem>(fs: &T, parent
 
     assert!(result.is_ok());
 
-    let contents = String::from_utf8(fs.read_file(path).unwrap()).unwrap();
+    let contents = String::from_utf8(read_file(fs, path).unwrap()).unwrap();
 
     assert_eq!(&contents, "new contents");
 }
@@ -622,7 +653,7 @@ fn overwrite_file_overwrites_contents_of_existing_file<T: FileSystem>(fs: &T, pa
 
     assert!(result.is_ok());
 
-    let contents = String::from_utf8(fs.read_file(path).unwrap()).unwrap();
+    let contents = String::from_utf8(read_file(fs, path).unwrap()).unwrap();
 
     assert_eq!(&contents, "new contents");
 }
@@ -663,7 +694,7 @@ fn read_file_returns_contents_as_bytes<T: FileSystem>(fs: &T, parent: &Path) {
 
     fs.write_file(&path, "test text").unwrap();
 
-    let result = fs.read_file(&path);
+    let result = read_file(fs, &path);
 
     assert!(result.is_ok());
     assert_eq!(result.unwrap(), br"test text");
@@ -671,7 +702,7 @@ fn read_file_returns_contents_as_bytes<T: FileSystem>(fs: &T, parent: &Path) {
 
 fn read_file_fails_if_file_does_not_exist<T: FileSystem>(fs: &T, parent: &Path) {
     let path = parent.join("test.txt");
-    let result = fs.read_file(&path);
+    let result = read_file(fs, &path);
 
     assert!(result.is_err());
     assert_eq!(result.unwrap_err().kind(), ErrorKind::NotFound);
@@ -682,7 +713,7 @@ fn read_file_to_string_returns_contents_as_string<T: FileSystem>(fs: &T, parent:
 
     fs.write_file(&path, "test text").unwrap();
 
-    let result = fs.read_file_to_string(&path);
+    let result = read_file_to_string(fs, &path);
 
     assert!(result.is_ok());
     assert_eq!(&result.unwrap(), "test text");
@@ -690,7 +721,7 @@ fn read_file_to_string_returns_contents_as_string<T: FileSystem>(fs: &T, parent:
 
 fn read_file_to_string_fails_if_file_does_not_exist<T: FileSystem>(fs: &T, parent: &Path) {
     let path = parent.join("test.txt");
-    let result = fs.read_file_to_string(&path);
+    let result = read_file_to_string(fs, &path);
 
     assert!(result.is_err());
     assert_eq!(result.unwrap_err().kind(), ErrorKind::NotFound);
@@ -701,7 +732,7 @@ fn read_file_to_string_fails_if_contents_are_not_utf8<T: FileSystem>(fs: &T, par
 
     fs.write_file(&path, &[0, 159, 146, 150]).unwrap();
 
-    let result = fs.read_file_to_string(&path);
+    let result = read_file_to_string(fs, &path);
 
     assert!(result.is_err());
     assert_eq!(result.unwrap_err().kind(), ErrorKind::InvalidData);
@@ -714,7 +745,7 @@ fn read_file_into_writes_bytes_to_buffer<T: FileSystem>(fs: &T, parent: &Path) {
     fs.write_file(&path, text).unwrap();
     let mut buf = Vec::new();
 
-    let result = fs.read_file_into(&path, &mut buf);
+    let result = read_file_into(fs, &path, &mut buf);
 
     assert!(result.is_ok());
     assert_eq!(result.unwrap(), text.as_bytes().len());
@@ -724,7 +755,7 @@ fn read_file_into_writes_bytes_to_buffer<T: FileSystem>(fs: &T, parent: &Path) {
 fn read_file_into_fails_if_file_does_not_exist<T: FileSystem>(fs: &T, parent: &Path) {
     let path = parent.join("test.txt");
 
-    let result = fs.read_file_into(&path, &mut Vec::new());
+    let result = read_file_into(fs, &path, &mut Vec::new());
 
     assert!(result.is_err());
     assert_eq!(result.unwrap_err().kind(), ErrorKind::NotFound);
@@ -760,7 +791,7 @@ fn create_file_writes_to_new_file<T: FileSystem>(fs: &T, parent: &Path) {
 
     assert!(result.is_ok());
 
-    let contents = String::from_utf8(fs.read_file(path).unwrap()).unwrap();
+    let contents = String::from_utf8(read_file(fs, path).unwrap()).unwrap();
 
     assert_eq!(&contents, "new contents");
 }
@@ -785,7 +816,7 @@ fn remove_file_removes_a_file<T: FileSystem>(fs: &T, parent: &Path) {
 
     assert!(result.is_ok());
 
-    let result = fs.read_file(&path);
+    let result = read_file(fs, &path);
 
     assert!(result.is_err());
     assert_eq!(result.unwrap_err().kind(), ErrorKind::NotFound);
@@ -819,7 +850,7 @@ fn copy_file_copies_a_file<T: FileSystem>(fs: &T, parent: &Path) {
 
     assert!(result.is_ok());
 
-    let result = fs.read_file(&to);
+    let result = read_file(fs, &to);
 
     assert!(result.is_ok());
     assert_eq!(&result.unwrap(), b"test");
@@ -836,7 +867,7 @@ fn copy_file_overwrites_destination_file<T: FileSystem>(fs: &T, parent: &Path) {
 
     assert!(result.is_ok());
 
-    let result = fs.read_file(&to);
+    let result = read_file(fs, &to);
 
     assert!(result.is_ok());
     assert_eq!(result.unwrap(), b"expected");
@@ -903,7 +934,7 @@ fn rename_renames_a_file<T: FileSystem>(fs: &T, parent: &Path) {
     assert!(result.is_ok());
     assert!(!fs.is_file(&from));
 
-    let result = fs.read_file_to_string(&to);
+    let result = read_file_to_string(fs, &to);
 
     assert!(result.is_ok());
     assert_eq!(result.unwrap(), "contents");
@@ -922,7 +953,7 @@ fn rename_renames_a_directory<T: FileSystem>(fs: &T, parent: &Path) {
     assert!(result.is_ok());
     assert!(!fs.is_dir(&from));
 
-    let result = fs.read_file_to_string(to.join("child"));
+    let result = read_file_to_string(fs, to.join("child"));
 
     assert!(result.is_ok());
     assert_eq!(result.unwrap(), "child");
@@ -940,7 +971,7 @@ fn rename_overwrites_destination_file<T: FileSystem>(fs: &T, parent: &Path) {
     assert!(result.is_ok());
     assert!(!fs.is_file(&from));
 
-    let result = fs.read_file_to_string(&to);
+    let result = read_file_to_string(fs, &to);
 
     assert!(result.is_ok());
     assert_eq!(result.unwrap(), "from");
@@ -960,7 +991,7 @@ fn rename_overwrites_empty_destination_directory<T: FileSystem>(fs: &T, parent: 
     assert!(result.is_ok(), "err: {:?}", result);
     assert!(!fs.is_dir(&from));
 
-    let result = fs.read_file_to_string(to.join("child"));
+    let result = read_file_to_string(fs, to.join("child"));
 
     assert!(result.is_ok());
     assert_eq!(result.unwrap(), "child");
@@ -983,11 +1014,11 @@ fn rename_renames_all_descendants<T: FileSystem>(fs: &T, parent: &Path) {
     assert!(result.is_ok());
     assert!(!fs.is_dir(&from));
 
-    let result = fs.read_file_to_string(to.join("child_file"));
+    let result = read_file_to_string(fs, to.join("child_file"));
     assert!(result.is_ok());
     assert_eq!(result.unwrap(), "child_file");
 
-    let result = fs.read_file_to_string(to.join("child_dir").join("grandchild"));
+    let result = read_file_to_string(fs, to.join("child_dir").join("grandchild"));
     assert!(result.is_ok());
     assert_eq!(result.unwrap(), "grandchild");
 }
@@ -1193,7 +1224,7 @@ fn open_object_reads_ok_after_file_deleted<T: FileSystem>(fs: &T, parent: &Path)
     let mut reader = fs.open(&path).unwrap();
     fs.remove_file(&path).unwrap();
     // verify file is really gone
-    let result = fs.read_file(&path);
+    let result = read_file(fs, &path);
     assert!(result.is_err());
     // check that reader can still read it
     let mut buf = vec![];
@@ -1221,7 +1252,7 @@ fn open_object_reads_ok_after_parent_dir_deleted<T: FileSystem>(fs: &T, parent: 
     let mut reader = fs.open(&path).unwrap();
     fs.remove_dir_all(&dir).unwrap();
     // verify file is really gone
-    let result = fs.read_file(&path);
+    let result = read_file(fs, &path);
     assert!(result.is_err());
     // check that reader can still read it
     let mut buf = vec![];
@@ -1236,9 +1267,9 @@ fn open_object_reads_ok_after_file_renamed<T: FileSystem>(fs: &T, parent: &Path)
     let renamed_path = parent.join("test.html");
     fs.rename(&path, &renamed_path).unwrap();
     // verify file is really renamed
-    let result = fs.read_file(&path);
+    let result = read_file(fs, &path);
     assert!(result.is_err());
-    let result = fs.read_file(&renamed_path);
+    let result = read_file(fs, &renamed_path);
     assert!(result.is_ok());
     // check that reader can still read it with the reader
     let mut buf = vec![];
@@ -1255,7 +1286,7 @@ fn open_object_reads_ok_after_parent_dir_renamed<T: FileSystem>(fs: &T, parent: 
     let renamed_dir = parent.join("test2");
     fs.rename(&dir, &renamed_dir).unwrap();
     // verify file is really gone
-    let result = fs.read_file(&path);
+    let result = read_file(fs, &path);
     assert!(result.is_err());
     // check that reader can still read it
     let mut buf = vec![];
@@ -1279,7 +1310,7 @@ fn open_object_reads_ok_after_parent_dir_moved<T: FileSystem>(fs: &T, parent: &P
 
     fs.rename(&dir1, dir2.join("test1")).unwrap();
     // verify that original file is gone
-    let result = fs.read_file(path);
+    let result = read_file(fs, path);
     assert!(result.is_err());
     // check that reader can still read the file
     let mut buf = vec![];
@@ -1419,9 +1450,9 @@ fn create_objects_write_independently<T: FileSystem>(fs: &T, parent: &Path) {
     let mut writers = (fs.create(&path).unwrap(), fs.create(&path).unwrap());
     let buf = b"the quick brown fox";
     writers.0.write_all(buf).unwrap();
-    let read_buf1 = fs.read_file(&path).unwrap();
+    let read_buf1 = read_file(fs, &path).unwrap();
     writers.1.write_all(buf).unwrap();
-    let read_buf2 = fs.read_file(&path).unwrap();
+    let read_buf2 = read_file(fs, &path).unwrap();
     assert_eq!(read_buf1, read_buf2);
 }
 
@@ -1438,7 +1469,7 @@ fn create_object_writes_chunked<T: FileSystem>(fs: &T, parent: &Path) {
     let mut writer = fs.create(&path).unwrap();
     writer.write_all(b"test").unwrap();
     writer.write_all(b" text").unwrap();
-    let contents = fs.read_file(&path).unwrap();
+    let contents = read_file(fs, &path).unwrap();
     assert_eq!(contents, b"test text");
 }
 
@@ -1449,7 +1480,7 @@ fn create_object_writes_ok_beyond_eof<T: FileSystem>(fs: &T, parent: &Path) {
 
     fs.write_file(&path, b"").unwrap();
     writer.write_all(b"test text").unwrap();
-    let buf = fs.read_file(&path).unwrap();
+    let buf = read_file(fs, &path).unwrap();
     assert_eq!(buf, b"\0\0\0\0\0\0\0\0\0test text");
 }
 
@@ -1495,7 +1526,7 @@ fn create_object_writes_ok_after_file_renamed<T: FileSystem>(fs: &T, parent: &Pa
     let result = writer.write_all(b"test text");
     assert!(result.is_ok());
 
-    let contents = fs.read_file(&renamed_path).unwrap();
+    let contents = read_file(fs, &renamed_path).unwrap();
     assert_eq!(contents, b"test texttest text");
 }
 
@@ -1511,7 +1542,7 @@ fn create_object_writes_ok_after_parent_dir_renamed<T: FileSystem>(fs: &T, paren
     let result = writer.write_all(b"test text");
     assert!(result.is_ok());
 
-    let contents = fs.read_file(renamed_dir.join("test.txt")).unwrap();
+    let contents = read_file(fs, renamed_dir.join("test.txt")).unwrap();
     assert_eq!(contents, b"test texttest text");
 }
 
@@ -1534,7 +1565,7 @@ fn create_object_writes_ok_after_parent_dir_moved<T: FileSystem>(fs: &T, parent:
     let result = writer.write_all(b"test text");
     assert!(result.is_ok());
 
-    let contents = fs.read_file(new_root.join("test.txt")).unwrap();
+    let contents = read_file(fs, new_root.join("test.txt")).unwrap();
     assert_eq!(contents, b"test texttest text");
 }
 
@@ -1547,7 +1578,7 @@ fn create_object_writes_ok_after_file_updated_long<T: FileSystem>(fs: &T, parent
     let result = writer.write_all(b"test text");
     assert!(result.is_ok());
 
-    let contents = fs.read_file(&path).unwrap();
+    let contents = read_file(fs, &path).unwrap();
     assert_eq!(contents, b"the quicktest textx");
 }
 
@@ -1560,7 +1591,7 @@ fn create_object_writes_ok_after_file_updated_short<T: FileSystem>(fs: &T, paren
     let result = writer.write_all(b"test text");
     assert!(result.is_ok());
 
-    let contents = fs.read_file(&path).unwrap();
+    let contents = read_file(fs, &path).unwrap();
     assert_eq!(contents, b"the quicktest text");
 }
 
@@ -1573,7 +1604,7 @@ fn create_object_writes_ok_after_file_shrunk<T: FileSystem>(fs: &T, parent: &Pat
     let result = writer.write_all(b"test text");
     assert!(result.is_ok());
 
-    let contents = fs.read_file(&path).unwrap();
+    let contents = read_file(fs, &path).unwrap();
     assert_eq!(contents, b"hello\0\0\0\0test text");
 }
 
@@ -1589,7 +1620,7 @@ fn create_object_can_seek_then_overwrite<T: FileSystem>(fs: &T, parent: &Path) {
     let result = writer.write_all(b"hello");
     assert!(result.is_ok());
 
-    let buf = fs.read_file(&path).unwrap();
+    let buf = read_file(fs, &path).unwrap();
     assert_eq!(buf, b"the qhellobrown fox");
 }
 
@@ -1605,7 +1636,7 @@ fn create_object_can_seek_then_overwrite_and_extend<T: FileSystem>(fs: &T, paren
     let result = writer.write_all(b"the quick brown fox");
     assert!(result.is_ok());
 
-    let buf = fs.read_file(&path).unwrap();
+    let buf = read_file(fs, &path).unwrap();
     assert_eq!(buf, b"test the quick brown fox");
 }
 
@@ -1621,7 +1652,7 @@ fn create_object_can_seek_then_extend<T: FileSystem>(fs: &T, parent: &Path) {
     let result = writer.write_all(b"test");
     assert!(result.is_ok());
 
-    let buf = fs.read_file(&path).unwrap();
+    let buf = read_file(fs, &path).unwrap();
     assert_eq!(buf, b"test text\0\0\0test");
 }
 
@@ -1653,7 +1684,7 @@ fn set_len_on_create_object_truncates_file<T: FileSystem>(fs: &T, parent: &Path)
     let result = writer.set_len(4);
     assert!(result.is_ok());
 
-    let contents = fs.read_file(&path).unwrap();
+    let contents = read_file(fs, &path).unwrap();
     assert_eq!(contents, b"test");
 }
 
@@ -1665,7 +1696,7 @@ fn set_len_on_create_object_extends_file<T: FileSystem>(fs: &T, parent: &Path) {
     let result = writer.set_len(9);
     assert!(result.is_ok());
 
-    let contents = fs.read_file(&path).unwrap();
+    let contents = read_file(fs, &path).unwrap();
     assert_eq!(contents, b"test\0\0\0\0\0");
 }
 
@@ -1770,7 +1801,7 @@ fn writable_object_allows_append<T: FileSystem>(fs: &T, parent: &Path) {
 
     writer.write_all(b"hello").unwrap();
 
-    let contents = fs.read_file(&path).unwrap();
+    let contents = read_file(fs, &path).unwrap();
     assert_eq!(contents, b"test texthello");
 }
 
@@ -1782,7 +1813,7 @@ fn writable_object_truncates<T: FileSystem>(fs: &T, parent: &Path) {
 
     writer.write_all(b"hello").unwrap();
 
-    let contents = fs.read_file(&path).unwrap();
+    let contents = read_file(fs, &path).unwrap();
     assert_eq!(String::from_utf8(contents).unwrap(), "test hello");
 }
 
@@ -1793,7 +1824,7 @@ fn writable_object_allows_write_short<T: FileSystem>(fs: &T, parent: &Path) {
 
     writer.write_all(b"hello").unwrap();
 
-    let contents = fs.read_file(&path).unwrap();
+    let contents = read_file(fs, &path).unwrap();
     assert_eq!(contents, b"hellotext");
 }
 
@@ -1804,7 +1835,7 @@ fn writable_object_allows_write_long<T: FileSystem>(fs: &T, parent: &Path) {
 
     writer.write_all(b"the quick brown fox").unwrap();
 
-    let contents = fs.read_file(&path).unwrap();
+    let contents = read_file(fs, &path).unwrap();
     assert_eq!(contents, b"the quick brown fox");
 }
 
@@ -1816,7 +1847,7 @@ fn writable_object_extends_file<T: FileSystem>(fs: &T, parent: &Path) {
     writer.seek(SeekFrom::Start(12)).unwrap();
     writer.write_all(b"hi").unwrap();
 
-    let contents = fs.read_file(&path).unwrap();
+    let contents = read_file(fs, &path).unwrap();
     assert_eq!(contents, b"test text\0\0\0hi");
 }
 
@@ -1970,7 +2001,7 @@ fn set_mode_sets_permissions<T: FileSystem + UnixFileSystem>(fs: &T, parent: &Pa
     assert!(readonly_result.is_ok());
     assert!(readonly_result.unwrap());
 
-    let read_result = fs.read_file(&path);
+    let read_result = read_file(fs, &path);
     let write_result = fs.write_file(&path, "should not be allowed");
 
     assert!(read_result.is_err());
@@ -1985,7 +2016,7 @@ fn set_mode_sets_permissions<T: FileSystem + UnixFileSystem>(fs: &T, parent: &Pa
 
     assert!(result.is_ok());
 
-    let read_result = fs.read_file(&path);
+    let read_result = read_file(fs, &path);
     let write_result = fs.write_file(&path, "should be allowed");
 
     assert!(read_result.is_err());

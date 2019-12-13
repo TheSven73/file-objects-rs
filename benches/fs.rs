@@ -73,7 +73,8 @@ fn read_file(bench: &mut Bencher) {
     let path = fs.current_dir().unwrap().join("hello.txt");
     fs.create_file(&path, b"hello world").unwrap();
     bench.iter( || {
-        fs.read_file(&path).unwrap();
+        let mut buf = vec![];
+        fs.open(&path).unwrap().read_to_end(&mut buf).unwrap();
     });
 }
 
@@ -118,8 +119,7 @@ fn open_file_with_large_fs(bench: &mut Bencher) {
     }
     bench.iter( || {
         let path = root.join("65");
-        //fs.open(&path).unwrap()
-        fs.read_file(&path).unwrap();
+        fs.open(&path).unwrap()
     });
 }
 

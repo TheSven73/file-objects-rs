@@ -131,35 +131,7 @@ pub trait FileSystem: Clone + Send + Sync {
     where
         P: AsRef<Path>,
         B: AsRef<[u8]>;
-    /// Returns the contents of `path`.
-    ///
-    /// # Errors
-    ///
-    /// * `path` does not exist.
-    /// * `path` is a directory.
-    /// * Current user has insufficient permissions.
-    fn read_file<P: AsRef<Path>>(&self, path: P) -> Result<Vec<u8>>;
-    /// Returns the contents of `path` as a string.
-    ///
-    /// # Errors
-    ///
-    /// * `path` does not exist.
-    /// * `path` is a directory.
-    /// * Current user has insufficient permissions.
-    /// * Contents are not valid UTF-8
-    fn read_file_to_string<P: AsRef<Path>>(&self, path: P) -> Result<String>;
-    /// Writes the contents of `path` into the buffer. If successful, returns
-    /// the number of bytes that were read.
-    ///
-    /// # Errors
-    ///
-    /// * `path` does not exist.
-    /// * `path` is a directory.
-    /// * Current user has insufficient permissions.
-    fn read_file_into<P, B>(&self, path: P, buf: B) -> Result<usize>
-    where
-        P: AsRef<Path>,
-        B: AsMut<Vec<u8>>;
+
     /// Removes the file at `path`.
     /// This is based on [`std::fs::remove_file`].
     ///

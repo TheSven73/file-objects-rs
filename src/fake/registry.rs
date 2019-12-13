@@ -136,25 +136,6 @@ impl Registry {
         }
     }
 
-    pub fn read_file_to_string(&self, path: &Path) -> Result<String> {
-        match self.read_file(path) {
-            Ok(vec) => String::from_utf8(vec).map_err(|_| create_error(ErrorKind::InvalidData)),
-            Err(err) => Err(err),
-        }
-    }
-
-    pub fn read_file_into(&self, path: &Path, buf: &mut Vec<u8>) -> Result<usize> {
-        match self.get_file(path) {
-            Ok(f) if f.mode & 0o444 != 0 => {
-                let contents = f.contents.borrow();
-                buf.extend(contents.iter());
-                Ok(contents.len())
-            }
-            Ok(_) => Err(create_error(ErrorKind::PermissionDenied)),
-            Err(err) => Err(err),
-        }
-    }
-
     pub fn remove_file(&mut self, path: &Path) -> Result<()> {
         match self.get_file(path) {
             Ok(_) => self.remove(path).and(Ok(())),

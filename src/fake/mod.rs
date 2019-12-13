@@ -262,22 +262,6 @@ impl FileSystem for FakeFileSystem {
         self.apply_mut(path.as_ref(), |r, p| r.overwrite_file(p, buf.as_ref()))
     }
 
-    fn read_file<P: AsRef<Path>>(&self, path: P) -> Result<Vec<u8>> {
-        self.apply(path.as_ref(), |r, p| r.read_file(p))
-    }
-
-    fn read_file_to_string<P: AsRef<Path>>(&self, path: P) -> Result<String> {
-        self.apply(path.as_ref(), |r, p| r.read_file_to_string(p))
-    }
-
-    fn read_file_into<P, B>(&self, path: P, mut buf: B) -> Result<usize>
-    where
-        P: AsRef<Path>,
-        B: AsMut<Vec<u8>>,
-    {
-        self.apply(path.as_ref(), |r, p| r.read_file_into(p, buf.as_mut()))
-    }
-
     fn remove_file<P: AsRef<Path>>(&self, path: P) -> Result<()> {
         self.apply_mut(path.as_ref(), |r, p| r.remove_file(p))
     }
