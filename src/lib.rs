@@ -314,7 +314,7 @@ pub trait TempFileSystem: Clone + Send + Sync {
 /// This is based on [`fs::OpenOptions`].
 ///
 /// [`fs::OpenOptions`]: https://doc.rust-lang.org/std/fs/struct.OpenOptions.html
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq)]
 pub struct OpenOptions {
     append: bool,
     create: bool,

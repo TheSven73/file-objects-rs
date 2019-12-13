@@ -8,6 +8,7 @@ use std::cmp::min;
 use std::io::ErrorKind;
 use fake::node::SharedContents;
 use fake::registry::create_error;
+use crate::OpenOptions;
 
 use FileSystem;
 use FileExt;
@@ -109,10 +110,43 @@ impl FakeFileSystem {
         f(&mut registry, from, to)
     }
 
+    // Opens an existing file as write-only.
+    // Does not modify the file on open.
     fn open_writable<P: AsRef<Path>>(&self, path: P) -> Result<FakeFile> {
         self.apply_mut(path.as_ref(), |r, p| {
             r.get_file_contents(p)
                 .map(|contents| FakeFile::new_writable(contents.clone()))
+        })
+    }
+
+    // Creates a new file as write-only.
+    // Fails if the file already exists.
+    fn create_new<P: AsRef<Path>>(&self, path: P) -> Result<FakeFile> {
+        self.apply_mut(path.as_ref(), |r, p| {
+            // make sure file does not exist
+            // careful, check presence in a way that works even if
+            // we have no read access to the file.
+            if let Ok(_) = r.readonly(p) {
+                return Err(io::Error::new(ErrorKind::AlreadyExists, "Already Exists"));
+            }
+            // create it
+            r.write_file(p, &[])?;
+            r.get_file_contents(p)
+                .map(|contents| FakeFile::new_writable(contents.clone()))
+        })
+    }
+
+    // Opens an existing file as write-only.
+    // Truncates on open.
+    // Fails if the file does not exist.
+    fn overwrite<P: AsRef<Path>>(&self, path: P) -> Result<FakeFile> {
+        self.apply_mut(path.as_ref(), |r, p| {
+            // make sure file exists
+            r.get_file_contents(p)?;
+            // then overwrite it
+            r.write_file(p, &[])?;
+            let contents = r.get_file_contents(p)?;
+            Ok(FakeFile::new_writable(contents.clone()))
         })
     }
 }
@@ -136,13 +170,21 @@ impl FileSystem for FakeFileSystem {
         })
     }
 
-    fn open_with_options<P: AsRef<Path>>(&self, path: P, o: &crate::OpenOptions)
-                                                                    -> Result<Self::File> {
-        match (o.append, o.create, o.create_new, o.read, o.truncate, o.write) {
-            (false, true, false, false, true, true) => self.create(path),
-            (false, false, false, true, false, false) => self.open(path),
-            (false, false, false, false, false, true) => self.open_writable(path),
-            _ => Err(create_error(ErrorKind::InvalidInput)),
+    fn open_with_options<P: AsRef<Path>>(&self, path: P, o: &OpenOptions) -> Result<Self::File> {
+
+        let o_create = OpenOptions::new().create(true).truncate(true).write(true);
+        let o_open = OpenOptions::new().read(true);
+        let o_open_writable = OpenOptions::new().write(true);
+        let o_create_new = OpenOptions::new().create_new(true).write(true);
+        let o_overwrite = OpenOptions::new().truncate(true).write(true);
+
+        match o {
+            o if *o == o_create         => self.create(path),
+            o if *o == o_open           => self.open(path),
+            o if *o == o_open_writable  => self.open_writable(path),
+            o if *o == o_create_new     => self.create_new(path),
+            o if *o == o_overwrite      => self.overwrite(path),
+             _ => Err(create_error(ErrorKind::InvalidInput)),
         }
     }
 
