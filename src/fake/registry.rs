@@ -124,13 +124,21 @@ impl Registry {
     }
 
     pub fn read_file(&self, path: &Path) -> Result<Vec<u8>> {
-        self.get_file_contents(path)
+        self.get_contents_if_readable(path)
             .map(|contents| contents.borrow().to_vec())
     }
 
-    pub fn get_file_contents(&self, path: &Path) -> Result<&SharedContents> {
+    pub fn get_contents_if_readable(&self, path: &Path) -> Result<&SharedContents> {
         match self.get_file(path) {
             Ok(f) if f.mode & 0o444 != 0 => Ok(&f.contents),
+            Ok(_) => Err(create_error(ErrorKind::PermissionDenied)),
+            Err(err) => Err(err),
+        }
+    }
+
+    pub fn get_contents_if_writable(&self, path: &Path) -> Result<&SharedContents> {
+        match self.get_file(path) {
+            Ok(f) if f.mode & 0o222 != 0 => Ok(&f.contents),
             Ok(_) => Err(create_error(ErrorKind::PermissionDenied)),
             Err(err) => Err(err),
         }

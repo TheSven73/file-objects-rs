@@ -114,7 +114,7 @@ impl FakeFileSystem {
     // Does not modify the file on open.
     fn open_writable<P: AsRef<Path>>(&self, path: P) -> Result<FakeFile> {
         self.apply_mut(path.as_ref(), |r, p| {
-            r.get_file_contents(p)
+            r.get_contents_if_writable(p)
                 .map(|contents| FakeFile::new_writable(contents.clone()))
         })
     }
@@ -125,13 +125,13 @@ impl FakeFileSystem {
         self.apply_mut(path.as_ref(), |r, p| {
             // make sure file does not exist
             // careful, check presence in a way that works even if
-            // we have no read access to the file.
-            if let Ok(_) = r.readonly(p) {
+            // we have no access to the file.
+            if r.readonly(p).is_ok() {
                 return Err(io::Error::new(ErrorKind::AlreadyExists, "Already Exists"));
             }
             // create it
             r.write_file(p, &[])?;
-            r.get_file_contents(p)
+            r.get_contents_if_writable(p)
                 .map(|contents| FakeFile::new_writable(contents.clone()))
         })
     }
@@ -141,11 +141,11 @@ impl FakeFileSystem {
     // Fails if the file does not exist.
     fn overwrite<P: AsRef<Path>>(&self, path: P) -> Result<FakeFile> {
         self.apply_mut(path.as_ref(), |r, p| {
-            // make sure file exists
-            r.get_file_contents(p)?;
-            // then overwrite it
-            r.write_file(p, &[])?;
-            let contents = r.get_file_contents(p)?;
+            // overwite file
+            // this ensure the file exists and we have
+            // write access.
+            r.overwrite_file(p, &[])?;
+            let contents = r.get_contents_if_writable(p)?;
             Ok(FakeFile::new_writable(contents.clone()))
         })
     }
@@ -158,14 +158,14 @@ impl FileSystem for FakeFileSystem {
 
     fn open<P: AsRef<Path>>(&self, path: P) -> Result<Self::File> {
         self.apply(path.as_ref(), |r, p|
-            r.get_file_contents(p)
+            r.get_contents_if_readable(p)
             .map(|contents| FakeFile::new_readable(contents.clone())))
     }
 
     fn create<P: AsRef<Path>>(&self, path: P) -> Result<Self::File> {
         self.apply_mut(path.as_ref(), |r, p| {
             r.write_file(p, &[])?;
-            let contents = r.get_file_contents(p)?;
+            let contents = r.get_contents_if_writable(p)?;
             Ok(FakeFile::new_writable(contents.clone()))
         })
     }
