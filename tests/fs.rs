@@ -279,6 +279,19 @@ where
     writer.write_all(buf.as_ref())
 }
 
+// Used to be part of the public API.
+// Keep around for the tests.
+fn overwrite_file<T, P, B>(fs: &T, path: P, buf: B) -> io::Result<()>
+where
+    T: FileSystem,
+    P: AsRef<Path>,
+    B: AsRef<[u8]>
+{
+    let opts = OpenOptions::new().write(true).truncate(true);
+    let mut writer = fs.open_with_options(path, &opts)?;
+    writer.write_all(buf.as_ref())
+}
+
 fn set_current_dir_fails_if_node_does_not_exists<T: FileSystem>(fs: &T, parent: &Path) {
     let path = parent.join("does_not_exist");
 
@@ -674,7 +687,7 @@ fn overwrite_file_overwrites_contents_of_existing_file<T: FileSystem>(fs: &T, pa
 
     write_file(fs, &path, "old contents").unwrap();
 
-    let result = fs.overwrite_file(&path, "new contents");
+    let result = overwrite_file(fs, &path, "new contents");
 
     assert!(result.is_ok());
 
@@ -685,7 +698,7 @@ fn overwrite_file_overwrites_contents_of_existing_file<T: FileSystem>(fs: &T, pa
 
 fn overwrite_file_fails_if_node_does_not_exist<T: FileSystem>(fs: &T, parent: &Path) {
     let path = parent.join("new_file");
-    let result = fs.overwrite_file(&path, "new contents");
+    let result = overwrite_file(fs, &path, "new contents");
 
     assert!(result.is_err());
     assert_eq!(result.unwrap_err().kind(), ErrorKind::NotFound);
@@ -697,7 +710,7 @@ fn overwrite_file_fails_if_file_is_readonly<T: FileSystem>(fs: &T, parent: &Path
     create_file(fs, &path, "").unwrap();
     fs.set_readonly(&path, true).unwrap();
 
-    let result = fs.overwrite_file(&path, "test contents");
+    let result = overwrite_file(fs, &path, "test contents");
 
     assert!(result.is_err());
     assert_eq!(result.unwrap_err().kind(), ErrorKind::PermissionDenied);
@@ -708,7 +721,7 @@ fn overwrite_file_fails_if_node_is_a_directory<T: FileSystem>(fs: &T, parent: &P
 
     fs.create_dir(&path).unwrap();
 
-    let result = fs.overwrite_file(&path, "test contents");
+    let result = overwrite_file(fs, &path, "test contents");
 
     assert!(result.is_err());
     assert_eq!(result.unwrap_err().kind(), ErrorKind::Other);

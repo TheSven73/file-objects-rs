@@ -238,14 +238,6 @@ impl FileSystem for FakeFileSystem {
         })
     }
 
-    fn overwrite_file<P, B>(&self, path: P, buf: B) -> Result<()>
-    where
-        P: AsRef<Path>,
-        B: AsRef<[u8]>,
-    {
-        self.apply_mut(path.as_ref(), |r, p| r.overwrite_file(p, buf.as_ref()))
-    }
-
     fn remove_file<P: AsRef<Path>>(&self, path: P) -> Result<()> {
         self.apply_mut(path.as_ref(), |r, p| r.remove_file(p))
     }

@@ -97,19 +97,6 @@ pub trait FileSystem: Clone + Send + Sync {
     /// [`std::fs::read_dir`]: https://doc.rust-lang.org/std/fs/fn.read_dir.html
     fn read_dir<P: AsRef<Path>>(&self, path: P) -> Result<Self::ReadDir>;
 
-    /// Writes `buf` to an existing file at `buf`.
-    /// This will overwrite any contents that already exist.
-    ///
-    /// # Errors
-    ///
-    /// * No file `file` does not exist.
-    /// * The node at `file` is a directory.
-    /// * Current user has insufficient permissions.
-    fn overwrite_file<P, B>(&self, path: P, buf: B) -> Result<()>
-    where
-        P: AsRef<Path>,
-        B: AsRef<[u8]>;
-
     /// Removes the file at `path`.
     /// This is based on [`std::fs::remove_file`].
     ///
