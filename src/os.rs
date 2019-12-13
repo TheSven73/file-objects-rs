@@ -1,6 +1,6 @@
 use std::env;
 use std::ffi::OsString;
-use std::fs::{self, File, OpenOptions, Permissions};
+use std::fs::{self, OpenOptions, Permissions};
 use std::io::{Read, Result, Write, SeekFrom, Seek};
 #[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
@@ -96,15 +96,6 @@ impl FileSystem for OsFileSystem {
 
     fn read_dir<P: AsRef<Path>>(&self, path: P) -> Result<Self::ReadDir> {
         fs::read_dir(path)
-    }
-
-    fn write_file<P, B>(&self, path: P, buf: B) -> Result<()>
-    where
-        P: AsRef<Path>,
-        B: AsRef<[u8]>,
-    {
-        let mut file = File::create(path)?;
-        file.write_all(buf.as_ref())
     }
 
     fn overwrite_file<P, B>(&self, path: P, buf: B) -> Result<()>

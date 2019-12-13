@@ -64,7 +64,7 @@ fn write_file(bench: &mut Bencher) {
     let path = fs.current_dir().unwrap().join("hello.txt");
     let contents = b"hello world";
     bench.iter( || {
-        fs.write_file(&path, contents).unwrap()
+        fs.create(&path).unwrap().write_all(contents).unwrap()
     });
 }
 
@@ -114,8 +114,7 @@ fn open_file_with_large_fs(bench: &mut Bencher) {
     let contents = b"hello world";
     for id in 0..1000 {
         let path = root.join(id.to_string());
-        //fs.create(&path).unwrap().write_all(contents).unwrap();
-        fs.write_file(&path, contents).unwrap();
+        fs.create(&path).unwrap().write_all(contents).unwrap();
     }
     bench.iter( || {
         let path = root.join("65");
