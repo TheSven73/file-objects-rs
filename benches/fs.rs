@@ -12,7 +12,7 @@ fn create_file_absolute(bench: &mut Bencher) {
     let fs = FakeFileSystem::new();
     let path = fs.current_dir().unwrap().join("hello.txt");
     bench.iter( || {
-        fs.create_file(&path, b"").unwrap();
+        fs.create(&path).unwrap();
         fs.remove_file(&path).unwrap();
     });
 }
@@ -21,7 +21,7 @@ fn create_file_relative(bench: &mut Bencher) {
     let fs = FakeFileSystem::new();
     let path = PathBuf::from("hello.txt");
     bench.iter( || {
-        fs.create_file(&path, b"").unwrap();
+        fs.create(&path).unwrap();
         fs.remove_file(&path).unwrap();
     });
 }
@@ -32,7 +32,7 @@ fn create_file_deep_relative_path(bench: &mut Bencher) {
     fs.create_dir_all(&deep).unwrap();
     let path = deep.join("test.txt");
     bench.iter( || {
-        fs.create_file(&path, b"").unwrap();
+        fs.create(&path).unwrap();
         fs.remove_file(&path).unwrap();
     });
 }
@@ -44,7 +44,7 @@ fn create_file_deep_absolute_path(bench: &mut Bencher) {
     fs.create_dir_all(&deep).unwrap();
     let path = deep.join("test.txt");
     bench.iter( || {
-        fs.create_file(&path, b"").unwrap();
+        fs.create(&path).unwrap();
         fs.remove_file(&path).unwrap();
     });
 }
@@ -54,7 +54,7 @@ fn create_file_long_filename(bench: &mut Bencher) {
     let file_name = ["test"].iter().cloned().take(20).collect::<Vec<_>>().join("");
     let path = PathBuf::from(file_name);
     bench.iter( || {
-        fs.create_file(&path, "").unwrap();
+        fs.create(&path).unwrap();
         fs.remove_file(&path).unwrap();
     });
 }
@@ -71,7 +71,7 @@ fn write_file(bench: &mut Bencher) {
 fn read_file(bench: &mut Bencher) {
     let fs = FakeFileSystem::new();
     let path = fs.current_dir().unwrap().join("hello.txt");
-    fs.create_file(&path, b"hello world").unwrap();
+    fs.create(&path).unwrap().write_all(b"hello world").unwrap();
     bench.iter( || {
         let mut buf = vec![];
         fs.open(&path).unwrap().read_to_end(&mut buf).unwrap();
@@ -81,7 +81,7 @@ fn read_file(bench: &mut Bencher) {
 fn seek_in_reader(bench: &mut Bencher) {
     let fs = FakeFileSystem::new();
     let path = fs.current_dir().unwrap().join("hello.txt");
-    fs.create_file(&path, b"the quick brown fox").unwrap();
+    fs.create(&path).unwrap().write_all(b"the quick brown fox").unwrap();
     let mut reader = fs.open(&path).unwrap();
     bench.iter( || {
         reader.seek(SeekFrom::Start(0)).unwrap();
@@ -151,8 +151,7 @@ fn copy_file(bench: &mut Bencher) {
     let root = fs.current_dir().unwrap();
     let path1 = root.join("test1.txt");
     let path2 = root.join("test2.txt");
-    //fs.create(&path1).unwrap().write_all(b"the quick brown fox").unwrap();
-    fs.create_file(&path1, b"the quick brown fox").unwrap();
+    fs.create(&path1).unwrap().write_all(b"the quick brown fox").unwrap();
     bench.iter( || {
         fs.copy_file(&path1, &path2).unwrap()
     });
@@ -163,8 +162,7 @@ fn rename_file(bench: &mut Bencher) {
     let root = fs.current_dir().unwrap();
     let path1 = root.join("test1.txt");
     let path2 = root.join("test2.txt");
-    //fs.create(&path1).unwrap().write_all(b"the quick brown fox").unwrap();
-    fs.create_file(&path1, b"the quick brown fox").unwrap();
+    fs.create(&path1).unwrap().write_all(b"the quick brown fox").unwrap();
     bench.iter( || {
         fs.rename(&path1, &path2).unwrap();
         fs.rename(&path2, &path1).unwrap();

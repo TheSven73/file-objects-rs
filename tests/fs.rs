@@ -254,6 +254,19 @@ fn read_file_into<T, P, B>(fs: &T, path: P, mut buf: B) -> io::Result<usize>
     reader.read_to_end(buf.as_mut())
 }
 
+// Used to be part of the public API.
+// Keep around for the tests.
+fn create_file<T, P, B>(fs: &T, path: P, buf: B) -> io::Result<()>
+where
+    T: FileSystem,
+    P: AsRef<Path>,
+    B: AsRef<[u8]>,
+{
+    let opts = OpenOptions::new().write(true).create_new(true);
+    let mut writer = fs.open_with_options(path, &opts)?;
+    writer.write_all(buf.as_ref())
+}
+
 fn set_current_dir_fails_if_node_does_not_exists<T: FileSystem>(fs: &T, parent: &Path) {
     let path = parent.join("does_not_exist");
 
@@ -266,7 +279,7 @@ fn set_current_dir_fails_if_node_does_not_exists<T: FileSystem>(fs: &T, parent: 
 fn set_current_dir_fails_if_node_is_a_file<T: FileSystem>(fs: &T, parent: &Path) {
     let path = parent.join("file");
 
-    fs.create_file(&path, "").unwrap();
+    create_file(fs, &path, "").unwrap();
 
     let result = fs.set_current_dir(path);
 
@@ -285,7 +298,7 @@ fn is_dir_returns_true_if_node_is_dir<T: FileSystem>(fs: &T, parent: &Path) {
 fn is_dir_returns_false_if_node_is_file<T: FileSystem>(fs: &T, parent: &Path) {
     let path = parent.join("new_dir");
 
-    fs.create_file(&path, "").unwrap();
+    create_file(fs, &path, "").unwrap();
 
     assert!(!fs.is_dir(&path));
 }
@@ -297,7 +310,7 @@ fn is_dir_returns_false_if_node_does_not_exist<T: FileSystem>(fs: &T, parent: &P
 fn is_file_returns_true_if_node_is_file<T: FileSystem>(fs: &T, parent: &Path) {
     let path = parent.join("new_file");
 
-    fs.create_file(&path, "").unwrap();
+    create_file(fs, &path, "").unwrap();
 
     assert!(fs.is_file(&path));
 }
@@ -396,7 +409,7 @@ fn remove_dir_fails_if_node_does_not_exist<T: FileSystem>(fs: &T, parent: &Path)
 fn remove_dir_fails_if_node_is_a_file<T: FileSystem>(fs: &T, parent: &Path) {
     let path = parent.join("file");
 
-    fs.create_file(&path, "").unwrap();
+    create_file(fs, &path, "").unwrap();
 
     let result = fs.remove_dir(&path);
 
@@ -410,7 +423,7 @@ fn remove_dir_fails_if_dir_is_not_empty<T: FileSystem>(fs: &T, parent: &Path) {
     let child = path.join("file");
 
     fs.create_dir(&path).unwrap();
-    fs.create_file(&child, "").unwrap();
+    create_file(fs, &child, "").unwrap();
 
     let result = fs.remove_dir(&path);
 
@@ -425,7 +438,7 @@ fn remove_dir_all_removes_dir_and_contents<T: FileSystem>(fs: &T, parent: &Path)
     let child = path.join("file");
 
     fs.create_dir(&path).unwrap();
-    fs.create_file(&child, "").unwrap();
+    create_file(fs, &child, "").unwrap();
 
     let result = fs.remove_dir_all(&path);
 
@@ -438,7 +451,7 @@ fn remove_dir_all_removes_dir_and_contents<T: FileSystem>(fs: &T, parent: &Path)
 fn remove_dir_all_fails_if_node_is_a_file<T: FileSystem>(fs: &T, parent: &Path) {
     let path = parent.join("file");
 
-    fs.create_file(&path, "").unwrap();
+    create_file(fs, &path, "").unwrap();
 
     let result = fs.remove_dir_all(&path);
 
@@ -526,12 +539,12 @@ fn read_dir_returns_dir_entries<T: FileSystem>(fs: &T, parent: &Path) {
     let file3 = dir1.join("file3");
     let file4 = dir2.join("file4");
 
-    fs.create_file(&file1, "").unwrap();
-    fs.create_file(&file2, "").unwrap();
+    create_file(fs, &file1, "").unwrap();
+    create_file(fs, &file2, "").unwrap();
     fs.create_dir(&dir1).unwrap();
     fs.create_dir(&dir2).unwrap();
-    fs.create_file(&file3, "").unwrap();
-    fs.create_file(&file4, "").unwrap();
+    create_file(fs, &file3, "").unwrap();
+    create_file(fs, &file4, "").unwrap();
 
     let result = fs.read_dir(parent);
 
@@ -561,7 +574,7 @@ fn read_dir_fails_if_node_does_not_exist<T: FileSystem>(fs: &T, parent: &Path) {
 fn read_dir_fails_if_node_is_a_file<T: FileSystem>(fs: &T, parent: &Path) {
     let path = parent.join("file");
 
-    fs.create_file(&path, "").unwrap();
+    create_file(fs, &path, "").unwrap();
 
     let result = fs.read_dir(&path);
 
@@ -587,7 +600,7 @@ fn create_object_writes_to_new_file<T: FileSystem>(fs: &T, parent: &Path) {
 fn create_object_fails_if_file_is_readonly<T: FileSystem>(fs: &T, parent: &Path) {
     let path = parent.join("test_file");
 
-    fs.create_file(&path, "").unwrap();
+    create_file(fs, &path, "").unwrap();
     fs.set_readonly(&path, true).unwrap();
 
     let result = fs.create(&path);
@@ -624,7 +637,7 @@ fn write_file_overwrites_contents_of_existing_file<T: FileSystem>(fs: &T, parent
 fn write_file_fails_if_file_is_readonly<T: FileSystem>(fs: &T, parent: &Path) {
     let path = parent.join("test_file");
 
-    fs.create_file(&path, "").unwrap();
+    create_file(fs, &path, "").unwrap();
     fs.set_readonly(&path, true).unwrap();
 
     let result = fs.write_file(&path, "test contents");
@@ -669,7 +682,7 @@ fn overwrite_file_fails_if_node_does_not_exist<T: FileSystem>(fs: &T, parent: &P
 fn overwrite_file_fails_if_file_is_readonly<T: FileSystem>(fs: &T, parent: &Path) {
     let path = parent.join("test_file");
 
-    fs.create_file(&path, "").unwrap();
+    create_file(fs, &path, "").unwrap();
     fs.set_readonly(&path, true).unwrap();
 
     let result = fs.overwrite_file(&path, "test contents");
@@ -787,7 +800,7 @@ fn open_object_fails_if_file_does_not_exist<T: FileSystem>(fs: &T, parent: &Path
 
 fn create_file_writes_to_new_file<T: FileSystem>(fs: &T, parent: &Path) {
     let path = parent.join("test_file");
-    let result = fs.create_file(&path, "new contents");
+    let result = create_file(fs, &path, "new contents");
 
     assert!(result.is_ok());
 
@@ -799,9 +812,9 @@ fn create_file_writes_to_new_file<T: FileSystem>(fs: &T, parent: &Path) {
 fn create_file_fails_if_file_already_exists<T: FileSystem>(fs: &T, parent: &Path) {
     let path = parent.join("test_file");
 
-    fs.create_file(&path, "contents").unwrap();
+    create_file(fs, &path, "contents").unwrap();
 
-    let result = fs.create_file(&path, "new contents");
+    let result = create_file(fs, &path, "new contents");
 
     assert!(result.is_err());
     assert_eq!(result.unwrap_err().kind(), ErrorKind::AlreadyExists);
@@ -810,7 +823,7 @@ fn create_file_fails_if_file_already_exists<T: FileSystem>(fs: &T, parent: &Path
 fn remove_file_removes_a_file<T: FileSystem>(fs: &T, parent: &Path) {
     let path = parent.join("test_file");
 
-    fs.create_file(&path, "").unwrap();
+    create_file(fs, &path, "").unwrap();
 
     let result = fs.remove_file(&path);
 
@@ -844,7 +857,7 @@ fn copy_file_copies_a_file<T: FileSystem>(fs: &T, parent: &Path) {
     let from = parent.join("from");
     let to = parent.join("to");
 
-    fs.create_file(&from, "test").unwrap();
+    create_file(fs, &from, "test").unwrap();
 
     let result = fs.copy_file(&from, &to);
 
@@ -860,8 +873,8 @@ fn copy_file_overwrites_destination_file<T: FileSystem>(fs: &T, parent: &Path) {
     let from = parent.join("from");
     let to = parent.join("to");
 
-    fs.create_file(&from, "expected").unwrap();
-    fs.create_file(&to, "should be overwritten").unwrap();
+    create_file(fs, &from, "expected").unwrap();
+    create_file(fs, &to, "should be overwritten").unwrap();
 
     let result = fs.copy_file(&from, &to);
 
@@ -888,8 +901,8 @@ fn copy_file_fails_if_destination_file_is_readonly<T: FileSystem>(fs: &T, parent
     let from = parent.join("from");
     let to = parent.join("to");
 
-    fs.create_file(&from, "test").unwrap();
-    fs.create_file(&to, "").unwrap();
+    create_file(fs, &from, "test").unwrap();
+    create_file(fs, &to, "").unwrap();
     fs.set_readonly(&to, true).unwrap();
 
     let result = fs.copy_file(&from, &to);
@@ -914,7 +927,7 @@ fn copy_file_fails_if_destination_node_is_directory<T: FileSystem>(fs: &T, paren
     let from = parent.join("from");
     let to = parent.join("to");
 
-    fs.create_file(&from, "").unwrap();
+    create_file(fs, &from, "").unwrap();
     fs.create_dir(&to).unwrap();
 
     let result = fs.copy_file(&from, &to);
@@ -927,7 +940,7 @@ fn rename_renames_a_file<T: FileSystem>(fs: &T, parent: &Path) {
     let from = parent.join("from");
     let to = parent.join("to");
 
-    fs.create_file(&from, "contents").unwrap();
+    create_file(fs, &from, "contents").unwrap();
 
     let result = fs.rename(&from, &to);
 
@@ -946,7 +959,7 @@ fn rename_renames_a_directory<T: FileSystem>(fs: &T, parent: &Path) {
     let child = from.join("child");
 
     fs.create_dir(&from).unwrap();
-    fs.create_file(&child, "child").unwrap();
+    create_file(fs, &child, "child").unwrap();
 
     let result = fs.rename(&from, &to);
 
@@ -963,8 +976,8 @@ fn rename_overwrites_destination_file<T: FileSystem>(fs: &T, parent: &Path) {
     let from = parent.join("from");
     let to = parent.join("to");
 
-    fs.create_file(&from, "from").unwrap();
-    fs.create_file(&to, "to").unwrap();
+    create_file(fs, &from, "from").unwrap();
+    create_file(fs, &to, "to").unwrap();
 
     let result = fs.rename(&from, &to);
 
@@ -984,7 +997,7 @@ fn rename_overwrites_empty_destination_directory<T: FileSystem>(fs: &T, parent: 
 
     fs.create_dir(&from).unwrap();
     fs.create_dir(&to).unwrap();
-    fs.create_file(&child, "child").unwrap();
+    create_file(fs, &child, "child").unwrap();
 
     let result = fs.rename(&from, &to);
 
@@ -1005,9 +1018,9 @@ fn rename_renames_all_descendants<T: FileSystem>(fs: &T, parent: &Path) {
     let grandchild = child_dir.join("grandchild");
 
     fs.create_dir(&from).unwrap();
-    fs.create_file(&child_file, "child_file").unwrap();
+    create_file(fs, &child_file, "child_file").unwrap();
     fs.create_dir(&child_dir).unwrap();
-    fs.create_file(&grandchild, "grandchild").unwrap();
+    create_file(fs, &grandchild, "grandchild").unwrap();
 
     let result = fs.rename(&from, &to);
 
@@ -1040,7 +1053,7 @@ fn rename_fails_if_original_and_destination_are_different_types<T: FileSystem>(
     let file = parent.join("file");
     let dir = parent.join("dir");
 
-    fs.create_file(&file, "").unwrap();
+    create_file(fs, &file, "").unwrap();
     fs.create_dir(&dir).unwrap();
 
     let result = fs.rename(&file, &dir);
@@ -1061,7 +1074,7 @@ fn rename_fails_if_destination_directory_is_not_empty<T: FileSystem>(fs: &T, par
 
     fs.create_dir(&from).unwrap();
     fs.create_dir(&to).unwrap();
-    fs.create_file(&child, "child").unwrap();
+    create_file(fs, &child, "child").unwrap();
 
     let result = fs.rename(&from, &to);
 
@@ -1071,7 +1084,7 @@ fn rename_fails_if_destination_directory_is_not_empty<T: FileSystem>(fs: &T, par
 fn readonly_returns_write_permission<T: FileSystem>(fs: &T, parent: &Path) {
     let path = parent.join("test_file");
 
-    fs.create_file(&path, "").unwrap();
+    create_file(fs, &path, "").unwrap();
 
     let result = fs.readonly(&path);
 
@@ -1096,7 +1109,7 @@ fn readonly_fails_if_node_does_not_exist<T: FileSystem>(fs: &T, parent: &Path) {
 fn set_readonly_toggles_write_permission_of_file<T: FileSystem>(fs: &T, parent: &Path) {
     let path = parent.join("test_file");
 
-    fs.create_file(&path, "").unwrap();
+    create_file(fs, &path, "").unwrap();
 
     let result = fs.set_readonly(&path, true);
 
@@ -1139,7 +1152,7 @@ fn set_readonly_fails_if_node_does_not_exist<T: FileSystem>(fs: &T, parent: &Pat
 
 fn len_returns_size_of_file<T: FileSystem>(fs: &T, parent: &Path) {
     let path = parent.join("file");
-    let result = fs.create_file(&path, "");
+    let result = create_file(fs, &path, "");
 
     assert!(result.is_ok());
 
@@ -1658,7 +1671,7 @@ fn create_object_can_seek_then_extend<T: FileSystem>(fs: &T, parent: &Path) {
 
 fn open_object_cannot_write<T: FileSystem>(fs: &T, parent: &Path) {
     let path = parent.join("test.txt");
-    fs.create_file(&path, vec![]).unwrap();
+    create_file(fs, &path, vec![]).unwrap();
 
     let mut reader = fs.open(&path).unwrap();
     let result = reader.write(b"the quick brown fox");
@@ -1955,7 +1968,7 @@ fn canonicalize_fails_if_subpath_is_file<T: FileSystem>(fs: &T, parent: &Path) {
 fn mode_returns_permissions<T: FileSystem + UnixFileSystem>(fs: &T, parent: &Path) {
     let path = parent.join("file");
 
-    fs.create_file(&path, "").unwrap();
+    create_file(fs, &path, "").unwrap();
     fs.set_mode(&path, 0o644).unwrap();
 
     let result = fs.mode(&path);
@@ -1990,7 +2003,7 @@ fn mode_fails_if_node_does_not_exist<T: UnixFileSystem>(fs: &T, parent: &Path) {
 fn set_mode_sets_permissions<T: FileSystem + UnixFileSystem>(fs: &T, parent: &Path) {
     let path = parent.join("file");
 
-    fs.create_file(&path, "").unwrap();
+    create_file(fs, &path, "").unwrap();
 
     let result = fs.set_mode(&path, 0o000);
 

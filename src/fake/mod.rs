@@ -238,14 +238,6 @@ impl FileSystem for FakeFileSystem {
         })
     }
 
-    fn create_file<P, B>(&self, path: P, buf: B) -> Result<()>
-    where
-        P: AsRef<Path>,
-        B: AsRef<[u8]>,
-    {
-        self.apply_mut(path.as_ref(), |r, p| r.create_file(p, buf.as_ref()))
-    }
-
     fn write_file<P, B>(&self, path: P, buf: B) -> Result<()>
     where
         P: AsRef<Path>,

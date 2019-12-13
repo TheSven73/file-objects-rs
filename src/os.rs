@@ -116,16 +116,6 @@ impl FileSystem for OsFileSystem {
         file.write_all(buf.as_ref())
     }
 
-    fn create_file<P, B>(&self, path: P, buf: B) -> Result<()>
-    where
-        P: AsRef<Path>,
-        B: AsRef<[u8]>,
-    {
-        let mut file = OpenOptions::new().write(true).create_new(true).open(path)?;
-
-        file.write_all(buf.as_ref())
-    }
-
     fn remove_file<P: AsRef<Path>>(&self, path: P) -> Result<()> {
         fs::remove_file(path)
     }
