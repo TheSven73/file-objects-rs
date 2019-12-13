@@ -59,9 +59,16 @@ pub trait FileSystem: Clone + Send + Sync {
     /// [`std::env::set_current_dir`]: https://doc.rust-lang.org/std/env/fn.set_current_dir.html
     fn set_current_dir<P: AsRef<Path>>(&self, path: P) -> Result<()>;
 
-    /// Determines whether the path exists and points to a directory.
+    /// Returns true if the path exists on disk and is pointing at a directory.
+    /// This is based on [`std::path::Path::is_dir`]
+    ///
+    /// [`std::path::Path::is_dir`]: https://doc.rust-lang.org/std/path/struct.Path.html#method.is_dir
     fn is_dir<P: AsRef<Path>>(&self, path: P) -> bool;
-    /// Determines whether the path exists and points to a file.
+
+    /// Returns true if the path exists on disk and is pointing at a regular file.
+    /// This is based on [`std::path::Path::is_file`]
+    ///
+    /// [`std::path::Path::is_file`]: https://doc.rust-lang.org/std/path/struct.Path.html#method.is_file
     fn is_file<P: AsRef<Path>>(&self, path: P) -> bool;
 
     /// Creates a new directory.
