@@ -1,6 +1,6 @@
 use std::env;
 use std::ffi::OsString;
-use std::fs::{self, Permissions};
+use std::fs::{self};
 use std::io::{Result};
 #[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
@@ -11,7 +11,7 @@ use tempdir;
 
 #[cfg(unix)]
 use UnixFileSystem;
-use {DirEntry, FileSystem, ReadDir, FileExt, Metadata};
+use {DirEntry, FileSystem, ReadDir, FileExt, Metadata, Permissions};
 #[cfg(feature = "temp")]
 use {TempDir, TempFileSystem};
 
@@ -49,6 +49,7 @@ impl FileSystem for OsFileSystem {
     type DirEntry = fs::DirEntry;
     type ReadDir = fs::ReadDir;
     type File = fs::File;
+    type Permissions = fs::Permissions;
 
     fn open<P: AsRef<Path>>(&self, path: P) -> Result<Self::File> {
         fs::File::open(path)
@@ -67,6 +68,10 @@ impl FileSystem for OsFileSystem {
             .truncate(options.truncate)
             .write(options.write)
             .open(path)
+    }
+
+    fn set_permissions<P: AsRef<Path>>(&self, path: P, perm: Self::Permissions) -> Result<()> {
+        fs::set_permissions(path, perm)
     }
 
     fn current_dir(&self) -> Result<PathBuf> {
@@ -161,6 +166,8 @@ impl FileExt for fs::File {
 }
 
 impl Metadata for fs::Metadata {
+    type Permissions = fs::Permissions;
+
     fn is_dir(&self) -> bool {
         self.is_dir()
     }
@@ -171,6 +178,20 @@ impl Metadata for fs::Metadata {
 
     fn len(&self) -> u64 {
         self.len()
+    }
+
+    fn permissions(&self) -> Self::Permissions {
+        self.permissions()
+    }
+}
+
+impl Permissions for fs::Permissions {
+    fn readonly(&self) -> bool {
+        self.readonly()
+    }
+
+    fn set_readonly(&mut self, readonly: bool) {
+        self.set_readonly(readonly)
     }
 }
 
@@ -210,7 +231,7 @@ impl TempFileSystem for OsFileSystem {
     }
 }
 
-fn permissions(path: &Path) -> Result<Permissions> {
+fn permissions(path: &Path) -> Result<fs::Permissions> {
     let metadata = fs::metadata(path)?;
 
     Ok(metadata.permissions())

@@ -23,6 +23,7 @@ pub trait FileSystem: Clone + Send + Sync {
     type DirEntry: DirEntry;
     type ReadDir: ReadDir<Self::DirEntry>;
     type File: io::Read + io::Seek + io::Write + FileExt + fmt::Debug;
+    type Permissions: Permissions;
 
     /// Attempts to open a file in read-only mode.
     /// This is based on [`fs::File::open`].
@@ -47,6 +48,12 @@ pub trait FileSystem: Clone + Send + Sync {
     ///
     /// [`fs::OpenOptions::open`]: https://doc.rust-lang.org/std/fs/struct.OpenOptions.html#method.open
     fn open_with_options<P: AsRef<Path>>(&self, path: P, options: &OpenOptions) -> Result<Self::File>;
+
+    /// Changes the permissions found on a file or a directory.
+    /// This is based on [`fs::set_permissions`].
+    ///
+    /// [`fs::set_permissions`]: https://doc.rust-lang.org/std/fs/fn.set_permissions.html
+    fn set_permissions<P: AsRef<Path>>(&self, path: P, perm: Self::Permissions) -> Result<()>;
 
     /// Returns the current working directory.
     /// This is based on [`std::env::current_dir`].
@@ -189,6 +196,8 @@ pub trait FileExt {
 /// [`fs::Metadata`]: https://doc.rust-lang.org/std/fs/struct.Metadata.html
 #[allow(clippy::len_without_is_empty)]
 pub trait Metadata {
+    type Permissions: Permissions;
+
     /// Returns true if this metadata is for a directory.
     /// This is based on [`fs::Metadata::is_dir`].
     ///
@@ -206,6 +215,30 @@ pub trait Metadata {
     ///
     /// [`fs::Metadata::len`]: https://doc.rust-lang.org/std/fs/struct.Metadata.html#method.len
     fn len(&self) -> u64;
+
+    /// Returns the permissions of the file this metadata is for.
+    /// This is based on [`fs::Metadata::permissions`].
+    ///
+    /// [`fs::Metadata::permissions`]: https://doc.rust-lang.org/std/fs/struct.Metadata.html?search=#method.permissions
+    fn permissions(&self) -> Self::Permissions;
+}
+
+/// Representation of the various permissions on a file.
+/// This is based on [`fs::Permissions`].
+///
+/// [`fs::Permissions`]: https://doc.rust-lang.org/std/fs/struct.Permissions.html
+pub trait Permissions {
+    /// Returns true if these permissions describe a readonly (unwritable) file.
+    /// This is based on [`fs::Permissions::readonly`].
+    ///
+    /// [`fs::Permissions::readonly`]: https://doc.rust-lang.org/std/fs/struct.Permissions.html#method.readonly
+    fn readonly(&self) -> bool;
+
+    /// Modifies the readonly flag for this set of permissions.
+    /// This is based on [`fs::Permissions::set_readonly`].
+    ///
+    /// [`fs::Permissions::set_readonly`]: https://doc.rust-lang.org/std/fs/struct.Permissions.html#method.set_readonly
+    fn set_readonly(&mut self, readonly: bool);
 }
 
 #[cfg(unix)]

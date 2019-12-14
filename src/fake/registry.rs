@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::io::{Error, ErrorKind, Result};
 use std::path::{Path, PathBuf};
 
-use super::node::{Dir, File, Node, SharedContents};
+use super::node::{Dir, File, Node};
 
 #[derive(Debug, Default)]
 pub struct Registry {
@@ -107,7 +107,7 @@ impl Registry {
     }
 
     pub fn write_file(&mut self, path: &Path, buf: &[u8]) -> Result<()> {
-        self.get_file_writable(path)
+        self.get_file_if_writable(path)
             .map(|ref mut f| *f.contents.borrow_mut() = buf.to_vec())
             .or_else(|e| {
                 if e.kind() == ErrorKind::NotFound {
@@ -119,26 +119,26 @@ impl Registry {
     }
 
     pub fn overwrite_file(&self, path: &Path, buf: &[u8]) -> Result<()> {
-        self.get_file_writable(path)
+        self.get_file_if_writable(path)
             .map(|ref mut f| *f.contents.borrow_mut() = buf.to_vec())
     }
 
     pub fn read_file(&self, path: &Path) -> Result<Vec<u8>> {
-        self.get_contents_if_readable(path)
-            .map(|contents| contents.borrow().to_vec())
+        self.get_file_if_readable(path)
+            .map(|f| f.contents.borrow().to_vec())
     }
 
-    pub fn get_contents_if_readable(&self, path: &Path) -> Result<&SharedContents> {
+    pub fn get_file_if_readable(&self, path: &Path) -> Result<&File> {
         match self.get_file(path) {
-            Ok(f) if f.mode.can_read() => Ok(&f.contents),
+            Ok(f) if f.mode.can_read() => Ok(f),
             Ok(_) => Err(create_error(ErrorKind::PermissionDenied)),
             Err(err) => Err(err),
         }
     }
 
-    pub fn get_contents_if_writable(&self, path: &Path) -> Result<&SharedContents> {
+    pub fn get_file_if_writable(&self, path: &Path) -> Result<&File> {
         match self.get_file(path) {
-            Ok(f) if f.mode.can_write() => Ok(&f.contents),
+            Ok(f) if f.mode.can_write() => Ok(f),
             Ok(_) => Err(create_error(ErrorKind::PermissionDenied)),
             Err(err) => Err(err),
         }
@@ -239,14 +239,6 @@ impl Registry {
     fn get_file(&self, path: &Path) -> Result<&File> {
         self.get(path).and_then(|node| match node {
             Node::File(ref file) => Ok(file),
-            Node::Dir(_) => Err(create_error(ErrorKind::Other)),
-        })
-    }
-
-    fn get_file_writable(&self, path: &Path) -> Result<&File> {
-        self.get(path).and_then(|node| match node {
-            Node::File(ref file) if file.mode.can_write() => Ok(file),
-            Node::File(_) => Err(create_error(ErrorKind::PermissionDenied)),
             Node::Dir(_) => Err(create_error(ErrorKind::Other)),
         })
     }

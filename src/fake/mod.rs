@@ -6,13 +6,14 @@ use std::sync::{Arc, Mutex, MutexGuard};
 use std::vec::IntoIter;
 use std::cmp::min;
 use std::io::ErrorKind;
-use fake::node::SharedContents;
+use fake::node::{SharedContents, SharedMode};
 use fake::registry::create_error;
 use crate::OpenOptions;
 
 use FileSystem;
 use FileExt;
 use Metadata;
+use Permissions;
 #[cfg(unix)]
 use UnixFileSystem;
 #[cfg(feature = "temp")]
@@ -114,8 +115,8 @@ impl FakeFileSystem {
     // Does not modify the file on open.
     fn open_writable<P: AsRef<Path>>(&self, path: P) -> Result<FakeFile> {
         self.apply(path.as_ref(), |r, p| {
-            r.get_contents_if_writable(p)
-                .map(|contents| FakeFile::new_writable(contents.clone()))
+            r.get_file_if_writable(p)
+                .map(|f| FakeFile::new(f, AccessMode::Write))
         })
     }
 
@@ -131,8 +132,8 @@ impl FakeFileSystem {
             }
             // create it
             r.write_file(p, &[])?;
-            r.get_contents_if_writable(p)
-                .map(|contents| FakeFile::new_writable(contents.clone()))
+            r.get_file_if_writable(p)
+                .map(|f| FakeFile::new(f, AccessMode::Write))
         })
     }
 
@@ -145,8 +146,8 @@ impl FakeFileSystem {
             // this ensure the file exists and we have
             // write access.
             r.overwrite_file(p, &[])?;
-            let contents = r.get_contents_if_writable(p)?;
-            Ok(FakeFile::new_writable(contents.clone()))
+            let f = r.get_file_if_writable(p)?;
+            Ok(FakeFile::new(f, AccessMode::Write))
         })
     }
 }
@@ -155,18 +156,19 @@ impl FileSystem for FakeFileSystem {
     type DirEntry = DirEntry;
     type ReadDir = ReadDir;
     type File = FakeFile;
+    type Permissions = FakePermissions;
 
     fn open<P: AsRef<Path>>(&self, path: P) -> Result<Self::File> {
         self.apply(path.as_ref(), |r, p|
-            r.get_contents_if_readable(p)
-            .map(|contents| FakeFile::new_readable(contents.clone())))
+            r.get_file_if_readable(p)
+                .map(|f| FakeFile::new(f, AccessMode::Read)))
     }
 
     fn create<P: AsRef<Path>>(&self, path: P) -> Result<Self::File> {
         self.apply_mut(path.as_ref(), |r, p| {
             r.write_file(p, &[])?;
-            let contents = r.get_contents_if_writable(p)?;
-            Ok(FakeFile::new_writable(contents.clone()))
+            let f = r.get_file_if_writable(p)?;
+            Ok(FakeFile::new(f, AccessMode::Write))
         })
     }
 
@@ -186,6 +188,11 @@ impl FileSystem for FakeFileSystem {
             o if *o == o_overwrite      => self.overwrite(path),
              _ => Err(create_error(ErrorKind::InvalidInput)),
         }
+    }
+
+    fn set_permissions<P: AsRef<Path>>(&self, path: P, perm: Self::Permissions) -> Result<()>
+    {
+        self.apply(path.as_ref(), |r, p| r.set_readonly(p, perm.readonly()))
     }
 
     fn current_dir(&self) -> Result<PathBuf> {
@@ -289,23 +296,19 @@ enum AccessMode {
 #[derive(Debug)]
 pub struct FakeFile {
     contents: SharedContents,
+    file_mode: SharedMode,
     pos: usize,
     access_mode: AccessMode,
 }
 
 impl FakeFile {
-    fn new(contents: SharedContents, access_mode: AccessMode) -> Self {
+    fn new(file: &node::File, access_mode: AccessMode) -> Self {
         FakeFile {
-            contents,
+            contents: file.contents.clone(),
+            file_mode : file.mode.clone(),
             pos: 0,
             access_mode,
         }
-    }
-    fn new_readable(contents: SharedContents) -> Self {
-        FakeFile::new(contents, AccessMode::Read)
-    }
-    fn new_writable(contents: SharedContents) -> Self {
-        FakeFile::new(contents, AccessMode::Write)
     }
     fn verify_access(&self, access_mode: AccessMode) -> Result<()> {
         if access_mode != self.access_mode {
@@ -377,7 +380,7 @@ impl FileExt for FakeFile {
     type Metadata = FakeMetadata;
 
     fn metadata(&self) -> Result<Self::Metadata> {
-        Ok(FakeMetadata::new(self.contents.borrow().len()))
+        Ok(FakeMetadata::new(self))
     }
     fn set_len(&self, size: u64) -> Result<()> {
         self.verify_access(AccessMode::Write)?;
@@ -396,17 +399,21 @@ impl FileExt for FakeFile {
 #[derive(Debug)]
 pub struct FakeMetadata {
     len: u64,
+    permissions: FakePermissions,
 }
 
 impl FakeMetadata {
-    fn new(len: usize) -> Self {
+    fn new(f: &FakeFile) -> Self {
         FakeMetadata {
-            len: len as u64
+            len: f.contents.borrow().len() as u64,
+            permissions: FakePermissions::from(&f.file_mode),
         }
     }
 }
 
 impl Metadata for FakeMetadata {
+    type Permissions = FakePermissions;
+
     fn is_dir(&self) -> bool {
         false
     }
@@ -417,6 +424,28 @@ impl Metadata for FakeMetadata {
 
     fn len(&self) -> u64 {
         self.len
+    }
+
+    fn permissions(&self) -> Self::Permissions {
+        self.permissions.clone()
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct FakePermissions(bool);
+
+impl From<&SharedMode> for FakePermissions {
+    fn from(mode: &SharedMode) -> FakePermissions {
+        FakePermissions(!mode.can_write())
+    }
+}
+
+impl Permissions for FakePermissions {
+    fn readonly(&self) -> bool {
+        self.0
+    }
+    fn set_readonly(&mut self, readonly: bool) {
+        self.0 = readonly;
     }
 }
 
