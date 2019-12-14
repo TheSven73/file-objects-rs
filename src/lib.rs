@@ -151,8 +151,21 @@ pub trait FileSystem: Clone + Send + Sync {
     fn canonicalize<P: AsRef<Path>>(&self, path: P) -> Result<PathBuf>;
 }
 
+/// Entries returned by the ReadDir iterator.
+/// This is based on [`fs::DirEntry`].
+///
+/// [`fs::DirEntry`]: https://doc.rust-lang.org/std/fs/struct.DirEntry.html
 pub trait DirEntry {
+    /// Returns the bare file name of this directory entry without any other leading path component.
+    /// This is based on [`fs::DirEntry::file_name`].
+    ///
+    /// [`fs::DirEntry::file_name`]: https://doc.rust-lang.org/std/fs/struct.DirEntry.html#method.file_name
     fn file_name(&self) -> OsString;
+
+    /// Returns the full path to the file that this entry represents.
+    /// This is based on [`fs::DirEntry::path`].
+    ///
+    /// [`fs::DirEntry::path`]: https://doc.rust-lang.org/std/fs/struct.DirEntry.html#method.path
     fn path(&self) -> PathBuf;
 }
 
