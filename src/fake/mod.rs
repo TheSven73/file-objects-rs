@@ -7,7 +7,7 @@ use std::vec::IntoIter;
 use std::cmp::min;
 use std::io::ErrorKind;
 use std::borrow::Cow;
-use fake::node::{SharedContents, SharedMode};
+use fake::node::{SharedMode};
 use fake::registry::create_error;
 use crate::OpenOptions;
 
@@ -294,10 +294,8 @@ enum AccessMode {
 
 #[derive(Debug)]
 pub struct FakeOpenFile {
-    /// Contents of the File we have open
-    contents: SharedContents,
-    /// Mode of the File we have open
-    file_mode: SharedMode,
+    /// Pointer to the file we have open
+    f: node::File,
     pos: usize,
     access_mode: AccessMode,
 }
@@ -305,8 +303,7 @@ pub struct FakeOpenFile {
 impl FakeOpenFile {
     fn new(file: &node::File, access_mode: AccessMode) -> Self {
         FakeOpenFile {
-            contents: file.contents.clone(),
-            file_mode : file.mode.clone(),
+            f: file.clone(),
             pos: 0,
             access_mode,
         }
@@ -323,7 +320,7 @@ impl FakeOpenFile {
 impl io::Read for FakeOpenFile {
     fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
         self.verify_access(AccessMode::Read)?;
-        let contents = self.contents.borrow();
+        let contents = self.f.contents.borrow();
         let pos = self.pos;
         // If the underlying file has shrunk, the offset could
         // point to beyond eof.
@@ -344,7 +341,7 @@ impl io::Seek for FakeOpenFile {
     fn seek(&mut self, pos: SeekFrom) -> Result<u64> {
         let pos = match pos {
             SeekFrom::Start(pos) => pos as i64,
-            SeekFrom::End(offs) => self.contents.borrow().len() as i64 + offs,
+            SeekFrom::End(offs) => self.f.contents.borrow().len() as i64 + offs,
             SeekFrom::Current(offs) => self.pos as i64 + offs,
         };
         if pos >= 0 {
@@ -360,7 +357,7 @@ impl io::Seek for FakeOpenFile {
 impl io::Write for FakeOpenFile {
     fn write(&mut self, buf: &[u8]) -> Result<usize> {
         self.verify_access(AccessMode::Write)?;
-        let mut contents = self.contents.borrow_mut();
+        let mut contents = self.f.contents.borrow_mut();
         let pos = self.pos;
         // if pos points beyond eof, resize contents to pos and pad with zeros
         if pos > contents.len() {
@@ -381,11 +378,11 @@ impl FileExt for FakeOpenFile {
     type Metadata = FakeMetadata;
 
     fn metadata(&self) -> Result<Self::Metadata> {
-        Ok(FakeMetadata::from(self))
+        Ok(FakeMetadata::from(&self.f))
     }
     fn set_len(&self, size: u64) -> Result<()> {
         self.verify_access(AccessMode::Write)?;
-        let mut contents = self.contents.borrow_mut();
+        let mut contents = self.f.contents.borrow_mut();
         contents.resize(size as usize, 0);
         Ok(())
     }
@@ -401,15 +398,6 @@ impl FileExt for FakeOpenFile {
 pub struct FakeMetadata {
     len: u64,
     permissions: FakePermissions,
-}
-
-impl From<&FakeOpenFile> for FakeMetadata {
-    fn from(of: &FakeOpenFile) -> Self {
-        FakeMetadata {
-            len: of.contents.borrow().len() as u64,
-            permissions: FakePermissions::from(&of.file_mode),
-        }
-    }
 }
 
 impl From<&node::File> for FakeMetadata {

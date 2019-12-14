@@ -53,7 +53,7 @@ impl SharedMode {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct File {
     pub contents: SharedContents,
     pub mode: SharedMode,
