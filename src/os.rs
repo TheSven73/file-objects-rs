@@ -1,7 +1,7 @@
 use std::env;
 use std::ffi::OsString;
 use std::fs::{self, Permissions};
-use std::io::{Read, Result, Write, SeekFrom, Seek};
+use std::io::{Result};
 #[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
@@ -48,18 +48,25 @@ impl OsFileSystem {
 impl FileSystem for OsFileSystem {
     type DirEntry = fs::DirEntry;
     type ReadDir = fs::ReadDir;
-    type File = OsFile;
+    type File = fs::File;
 
     fn open<P: AsRef<Path>>(&self, path: P) -> Result<Self::File> {
-        OsFile::open(path)
+        fs::File::open(path)
     }
 
     fn create<P: AsRef<Path>>(&self, path: P) -> Result<Self::File> {
-        OsFile::create(path)
+        fs::File::create(path)
     }
 
     fn open_with_options<P: AsRef<Path>>(&self, path: P, options: &crate::OpenOptions) -> Result<Self::File> {
-        OsFile::open_with_options(path, options)
+        fs::OpenOptions::new()
+            .append(options.append)
+            .create(options.create)
+            .create_new(options.create_new)
+            .read(options.read)
+            .truncate(options.truncate)
+            .write(options.write)
+            .open(path)
     }
 
     fn current_dir(&self) -> Result<PathBuf> {
@@ -135,81 +142,35 @@ impl FileSystem for OsFileSystem {
     }
 }
 
-#[derive(Debug)]
-pub struct OsFile(fs::File);
-
-impl OsFile {
-    fn open<P: AsRef<Path>>(path: P) -> Result<Self> {
-        fs::File::open(path).map(|f| OsFile(f))
-    }
-    fn create<P: AsRef<Path>>(path: P) -> Result<Self> {
-        fs::File::create(path).map(|f| OsFile(f))
-    }
-    fn open_with_options<P: AsRef<Path>>(path: P, options: &crate::OpenOptions) -> Result<Self> {
-        fs::OpenOptions::new()
-            .append(options.append)
-            .create(options.create)
-            .create_new(options.create_new)
-            .read(options.read)
-            .truncate(options.truncate)
-            .write(options.write)
-            .open(path)
-        .map(|f| OsFile(f))
-    }
-}
-
-impl Read for OsFile {
-    fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
-        self.0.read(buf)
-    }
-}
-
-impl Seek for OsFile {
-    fn seek(&mut self, pos: SeekFrom) -> Result<u64> {
-        self.0.seek(pos)
-    }
-}
-
-impl Write for OsFile {
-    fn write(&mut self, buf: &[u8]) -> Result<usize> {
-        self.0.write(buf)
-    }
-    fn flush(&mut self) -> Result<()> {
-        self.0.flush()
-    }
-}
-
-impl FileExt for OsFile {
-    type Metadata = OsMetadata;
+impl FileExt for fs::File {
+    type Metadata = fs::Metadata;
 
     fn metadata(&self) -> Result<Self::Metadata> {
-        self.0.metadata().map(|m| OsMetadata(m))
+        self.metadata()
     }
 
     fn set_len(&self, size: u64) -> Result<()> {
-        self.0.set_len(size)
+        self.set_len(size)
     }
     fn sync_all(&self) -> Result<()> {
-        self.0.sync_all()
+        self.sync_all()
     }
     fn sync_data(&self) -> Result<()> {
-        self.0.sync_data()
+        self.sync_data()
     }
 }
 
-pub struct OsMetadata(fs::Metadata);
-
-impl Metadata for OsMetadata {
+impl Metadata for fs::Metadata {
     fn is_dir(&self) -> bool {
-        self.0.is_dir()
+        self.is_dir()
     }
 
     fn is_file(&self) -> bool {
-        self.0.is_file()
+        self.is_file()
     }
 
     fn len(&self) -> u64 {
-        self.0.len()
+        self.len()
     }
 }
 
