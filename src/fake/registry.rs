@@ -130,7 +130,7 @@ impl Registry {
 
     pub fn get_contents_if_readable(&self, path: &Path) -> Result<&SharedContents> {
         match self.get_file(path) {
-            Ok(f) if f.mode & 0o444 != 0 => Ok(&f.contents),
+            Ok(f) if f.mode.can_read() => Ok(&f.contents),
             Ok(_) => Err(create_error(ErrorKind::PermissionDenied)),
             Err(err) => Err(err),
         }
@@ -138,7 +138,7 @@ impl Registry {
 
     pub fn get_contents_if_writable(&self, path: &Path) -> Result<&SharedContents> {
         match self.get_file(path) {
-            Ok(f) if f.mode & 0o222 != 0 => Ok(&f.contents),
+            Ok(f) if f.mode.can_write() => Ok(&f.contents),
             Ok(_) => Err(create_error(ErrorKind::PermissionDenied)),
             Err(err) => Err(err),
         }
@@ -187,41 +187,31 @@ impl Registry {
 
     pub fn readonly(&self, path: &Path) -> Result<bool> {
         self.get(path).map(|node| match node {
-            Node::File(ref file) => file.mode & 0o222 == 0,
-            Node::Dir(ref dir) => dir.mode & 0o222 == 0,
+            Node::File(ref file) => !file.mode.can_write(),
+            Node::Dir(ref dir) => !dir.mode.can_write(),
         })
     }
 
     pub fn set_readonly(&mut self, path: &Path, readonly: bool) -> Result<()> {
         self.get_mut(path).map(|node| match node {
-            Node::File(ref mut file) => {
-                if readonly {
-                    file.mode &= !0o222
-                } else {
-                    file.mode |= 0o222
-                }
-            }
-            Node::Dir(ref mut dir) => {
-                if readonly {
-                    dir.mode &= !0o222
-                } else {
-                    dir.mode |= 0o222
-                }
-            }
+            Node::File(ref mut file) =>
+                    file.mode.make_readonly(readonly),
+            Node::Dir(ref mut dir) =>
+                    dir.mode.make_readonly(readonly),
         })
     }
 
     pub fn mode(&self, path: &Path) -> Result<u32> {
         self.get(path).map(|node| match node {
-            Node::File(ref file) => file.mode,
-            Node::Dir(ref dir) => dir.mode,
+            Node::File(ref file) => file.mode.get(),
+            Node::Dir(ref dir) => dir.mode.get(),
         })
     }
 
     pub fn set_mode(&mut self, path: &Path, mode: u32) -> Result<()> {
         self.get_mut(path).map(|node| match node {
-            Node::File(ref mut file) => file.mode = mode,
-            Node::Dir(ref mut dir) => dir.mode = mode,
+            Node::File(ref mut file) => file.mode.set(mode),
+            Node::Dir(ref mut dir) => dir.mode.set(mode),
         })
     }
 
@@ -246,7 +236,7 @@ impl Registry {
 
     fn get_dir_mut(&mut self, path: &Path) -> Result<&mut Dir> {
         self.get_mut(path).and_then(|node| match node {
-            Node::Dir(ref mut dir) if dir.mode & 0o222 != 0 => Ok(dir),
+            Node::Dir(ref mut dir) if dir.mode.can_write() => Ok(dir),
             Node::Dir(_) => Err(create_error(ErrorKind::PermissionDenied)),
             Node::File(_) => Err(create_error(ErrorKind::Other)),
         })
@@ -261,7 +251,7 @@ impl Registry {
 
     fn get_file_mut(&mut self, path: &Path) -> Result<&mut File> {
         self.get_mut(path).and_then(|node| match node {
-            Node::File(ref mut file) if file.mode & 0o222 != 0 => Ok(file),
+            Node::File(ref mut file) if file.mode.can_write() => Ok(file),
             Node::File(_) => Err(create_error(ErrorKind::PermissionDenied)),
             Node::Dir(_) => Err(create_error(ErrorKind::Other)),
         })
@@ -294,8 +284,8 @@ impl Registry {
                 (
                     p.to_path_buf(),
                     match n {
-                        Node::File(ref file) => file.mode,
-                        Node::Dir(ref dir) => dir.mode,
+                        Node::File(ref file) => file.mode.get(),
+                        Node::Dir(ref dir) => dir.mode.get(),
                     },
                 )
             })
