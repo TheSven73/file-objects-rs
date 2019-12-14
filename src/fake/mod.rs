@@ -113,7 +113,7 @@ impl FakeFileSystem {
     // Opens an existing file as write-only.
     // Does not modify the file on open.
     fn open_writable<P: AsRef<Path>>(&self, path: P) -> Result<FakeFile> {
-        self.apply_mut(path.as_ref(), |r, p| {
+        self.apply(path.as_ref(), |r, p| {
             r.get_contents_if_writable(p)
                 .map(|contents| FakeFile::new_writable(contents.clone()))
         })
@@ -140,7 +140,7 @@ impl FakeFileSystem {
     // Truncates on open.
     // Fails if the file does not exist.
     fn overwrite<P: AsRef<Path>>(&self, path: P) -> Result<FakeFile> {
-        self.apply_mut(path.as_ref(), |r, p| {
+        self.apply(path.as_ref(), |r, p| {
             // overwite file
             // this ensure the file exists and we have
             // write access.
@@ -265,7 +265,7 @@ impl FileSystem for FakeFileSystem {
     }
 
     fn set_readonly<P: AsRef<Path>>(&self, path: P, readonly: bool) -> Result<()> {
-        self.apply_mut(path.as_ref(), |r, p| r.set_readonly(p, readonly))
+        self.apply(path.as_ref(), |r, p| r.set_readonly(p, readonly))
     }
 
     fn canonicalize<P: AsRef<Path>>(&self, path: P) -> Result<PathBuf> {

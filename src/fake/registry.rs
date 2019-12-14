@@ -118,7 +118,7 @@ impl Registry {
             })
     }
 
-    pub fn overwrite_file(&mut self, path: &Path, buf: &[u8]) -> Result<()> {
+    pub fn overwrite_file(&self, path: &Path, buf: &[u8]) -> Result<()> {
         self.get_file_writable(path)
             .map(|ref mut f| *f.contents.borrow_mut() = buf.to_vec())
     }
@@ -192,7 +192,7 @@ impl Registry {
         })
     }
 
-    pub fn set_readonly(&mut self, path: &Path, readonly: bool) -> Result<()> {
+    pub fn set_readonly(&self, path: &Path, readonly: bool) -> Result<()> {
         self.get(path).map(|node| match node {
             Node::File(ref file) =>
                     file.mode.make_readonly(readonly),
