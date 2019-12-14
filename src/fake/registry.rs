@@ -236,7 +236,7 @@ impl Registry {
         })
     }
 
-    fn get_file(&self, path: &Path) -> Result<&File> {
+    pub fn get_file(&self, path: &Path) -> Result<&File> {
         self.get(path).and_then(|node| match node {
             Node::File(ref file) => Ok(file),
             Node::Dir(_) => Err(create_error(ErrorKind::Other)),

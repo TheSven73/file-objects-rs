@@ -150,6 +150,7 @@ impl FileSystem for FakeFileSystem {
     type ReadDir = ReadDir;
     type File = FakeOpenFile;
     type Permissions = FakePermissions;
+    type Metadata = FakeMetadata;
 
     fn open<P: AsRef<Path>>(&self, path: P) -> Result<Self::File> {
         self.apply(path.as_ref(), |r, p|
@@ -186,6 +187,11 @@ impl FileSystem for FakeFileSystem {
     fn set_permissions<P: AsRef<Path>>(&self, path: P, perm: Self::Permissions) -> Result<()>
     {
         self.apply(path.as_ref(), |r, p| r.set_readonly(p, perm.readonly()))
+    }
+
+    fn metadata<P: AsRef<Path>>(&self, path: P) -> Result<Self::Metadata> {
+        self.apply(path.as_ref(), |r, p|
+            r.get_file(p).map(FakeMetadata::from))
     }
 
     fn current_dir(&self) -> Result<PathBuf> {
@@ -375,7 +381,7 @@ impl FileExt for FakeOpenFile {
     type Metadata = FakeMetadata;
 
     fn metadata(&self) -> Result<Self::Metadata> {
-        Ok(FakeMetadata::new(self))
+        Ok(FakeMetadata::from(self))
     }
     fn set_len(&self, size: u64) -> Result<()> {
         self.verify_access(AccessMode::Write)?;
@@ -397,11 +403,20 @@ pub struct FakeMetadata {
     permissions: FakePermissions,
 }
 
-impl FakeMetadata {
-    fn new(of: &FakeOpenFile) -> Self {
+impl From<&FakeOpenFile> for FakeMetadata {
+    fn from(of: &FakeOpenFile) -> Self {
         FakeMetadata {
             len: of.contents.borrow().len() as u64,
             permissions: FakePermissions::from(&of.file_mode),
+        }
+    }
+}
+
+impl From<&node::File> for FakeMetadata {
+    fn from(f: &node::File) -> Self {
+        FakeMetadata {
+            len: f.contents.borrow().len() as u64,
+            permissions: FakePermissions::from(&f.mode),
         }
     }
 }

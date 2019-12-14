@@ -50,6 +50,7 @@ impl FileSystem for OsFileSystem {
     type ReadDir = fs::ReadDir;
     type File = fs::File;
     type Permissions = fs::Permissions;
+    type Metadata = fs::Metadata;
 
     fn open<P: AsRef<Path>>(&self, path: P) -> Result<Self::File> {
         fs::File::open(path)
@@ -72,6 +73,10 @@ impl FileSystem for OsFileSystem {
 
     fn set_permissions<P: AsRef<Path>>(&self, path: P, perm: Self::Permissions) -> Result<()> {
         fs::set_permissions(path, perm)
+    }
+
+    fn metadata<P: AsRef<Path>>(&self, path: P) -> Result<Self::Metadata> {
+        fs::metadata(path)
     }
 
     fn current_dir(&self) -> Result<PathBuf> {

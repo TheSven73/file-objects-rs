@@ -22,8 +22,9 @@ mod os;
 pub trait FileSystem: Clone + Send + Sync {
     type DirEntry: DirEntry;
     type ReadDir: ReadDir<Self::DirEntry>;
-    type File: io::Read + io::Seek + io::Write + FileExt + fmt::Debug;
+    type File: io::Read + io::Seek + io::Write + FileExt<Metadata=Self::Metadata> + fmt::Debug;
     type Permissions: Permissions;
+    type Metadata: Metadata<Permissions=Self::Permissions>;
 
     /// Attempts to open a file in read-only mode.
     /// This is based on [`fs::File::open`].
@@ -54,6 +55,12 @@ pub trait FileSystem: Clone + Send + Sync {
     ///
     /// [`fs::set_permissions`]: https://doc.rust-lang.org/std/fs/fn.set_permissions.html
     fn set_permissions<P: AsRef<Path>>(&self, path: P, perm: Self::Permissions) -> Result<()>;
+
+    /// Given a path, query the file system to get information about a file, directory, etc.
+    /// This is based on [`fs::metadata`].
+    ///
+    /// [`fs::metadata`]: https://doc.rust-lang.org/std/fs/fn.metadata.html
+    fn metadata<P: AsRef<Path>>(&self, path: P) -> Result<Self::Metadata>;
 
     /// Returns the current working directory.
     /// This is based on [`std::env::current_dir`].
