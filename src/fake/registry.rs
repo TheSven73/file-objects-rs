@@ -78,7 +78,7 @@ impl Registry {
     }
 
     pub fn remove_dir_all(&mut self, path: &Path) -> Result<()> {
-        self.get_dir_mut(path)?;
+        self.get_dir_writable(path)?;
 
         let descendants = self.descendants(path);
         let all_readable = descendants.iter().all(|(_, mode)| mode & 0o444 != 0);
@@ -107,7 +107,7 @@ impl Registry {
     }
 
     pub fn write_file(&mut self, path: &Path, buf: &[u8]) -> Result<()> {
-        self.get_file_mut(path)
+        self.get_file_writable(path)
             .map(|ref mut f| *f.contents.borrow_mut() = buf.to_vec())
             .or_else(|e| {
                 if e.kind() == ErrorKind::NotFound {
@@ -119,7 +119,7 @@ impl Registry {
     }
 
     pub fn overwrite_file(&mut self, path: &Path, buf: &[u8]) -> Result<()> {
-        self.get_file_mut(path)
+        self.get_file_writable(path)
             .map(|ref mut f| *f.contents.borrow_mut() = buf.to_vec())
     }
 
@@ -193,10 +193,10 @@ impl Registry {
     }
 
     pub fn set_readonly(&mut self, path: &Path, readonly: bool) -> Result<()> {
-        self.get_mut(path).map(|node| match node {
-            Node::File(ref mut file) =>
+        self.get(path).map(|node| match node {
+            Node::File(ref file) =>
                     file.mode.make_readonly(readonly),
-            Node::Dir(ref mut dir) =>
+            Node::Dir(ref dir) =>
                     dir.mode.make_readonly(readonly),
         })
     }
@@ -208,22 +208,16 @@ impl Registry {
         })
     }
 
-    pub fn set_mode(&mut self, path: &Path, mode: u32) -> Result<()> {
-        self.get_mut(path).map(|node| match node {
-            Node::File(ref mut file) => file.mode.set(mode),
-            Node::Dir(ref mut dir) => dir.mode.set(mode),
+    pub fn set_mode(&self, path: &Path, mode: u32) -> Result<()> {
+        self.get(path).map(|node| match node {
+            Node::File(ref file) => file.mode.set(mode),
+            Node::Dir(ref dir) => dir.mode.set(mode),
         })
     }
 
     fn get(&self, path: &Path) -> Result<&Node> {
         self.files
             .get(path)
-            .ok_or_else(|| create_error(ErrorKind::NotFound))
-    }
-
-    fn get_mut(&mut self, path: &Path) -> Result<&mut Node> {
-        self.files
-            .get_mut(path)
             .ok_or_else(|| create_error(ErrorKind::NotFound))
     }
 
@@ -234,9 +228,9 @@ impl Registry {
         })
     }
 
-    fn get_dir_mut(&mut self, path: &Path) -> Result<&mut Dir> {
-        self.get_mut(path).and_then(|node| match node {
-            Node::Dir(ref mut dir) if dir.mode.can_write() => Ok(dir),
+    fn get_dir_writable(&self, path: &Path) -> Result<&Dir> {
+        self.get(path).and_then(|node| match node {
+            Node::Dir(ref dir) if dir.mode.can_write() => Ok(dir),
             Node::Dir(_) => Err(create_error(ErrorKind::PermissionDenied)),
             Node::File(_) => Err(create_error(ErrorKind::Other)),
         })
@@ -249,9 +243,9 @@ impl Registry {
         })
     }
 
-    fn get_file_mut(&mut self, path: &Path) -> Result<&mut File> {
-        self.get_mut(path).and_then(|node| match node {
-            Node::File(ref mut file) if file.mode.can_write() => Ok(file),
+    fn get_file_writable(&self, path: &Path) -> Result<&File> {
+        self.get(path).and_then(|node| match node {
+            Node::File(ref file) if file.mode.can_write() => Ok(file),
             Node::File(_) => Err(create_error(ErrorKind::PermissionDenied)),
             Node::Dir(_) => Err(create_error(ErrorKind::Other)),
         })
@@ -261,7 +255,7 @@ impl Registry {
         if self.files.contains_key(&path) {
             return Err(create_error(ErrorKind::AlreadyExists));
         } else if let Some(p) = path.parent() {
-            self.get_dir_mut(p)?;
+            self.get_dir_writable(p)?;
         }
 
         self.files.insert(path, file);
