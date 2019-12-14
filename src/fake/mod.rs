@@ -6,6 +6,7 @@ use std::sync::{Arc, Mutex, MutexGuard};
 use std::vec::IntoIter;
 use std::cmp::min;
 use std::io::ErrorKind;
+use std::borrow::Cow;
 use fake::node::{SharedContents, SharedMode};
 use fake::registry::create_error;
 use crate::OpenOptions;
@@ -49,18 +50,16 @@ impl FakeFileSystem {
         F: FnOnce(&MutexGuard<Registry>, &Path) -> T,
     {
         let registry = self.registry.lock().unwrap();
-        let storage;
-        let path = if path.is_relative() {
-            storage = registry
+        let mut path = Cow::from(path);
+        if path.is_relative() {
+            path = registry
                 .current_dir()
                 .unwrap_or_else(|_| PathBuf::from("/"))
-                .join(path);
-            &storage
-        } else {
-            path
-        };
+                .join(path)
+                .into();
+        }
 
-        f(&registry, path)
+        f(&registry, &path)
     }
 
     fn apply_mut<F, T>(&self, path: &Path, mut f: F) -> T
@@ -68,18 +67,16 @@ impl FakeFileSystem {
         F: FnMut(&mut MutexGuard<Registry>, &Path) -> T,
     {
         let mut registry = self.registry.lock().unwrap();
-        let storage;
-        let path = if path.is_relative() {
-            storage = registry
+        let mut path = Cow::from(path);
+        if path.is_relative() {
+            path = registry
                 .current_dir()
                 .unwrap_or_else(|_| PathBuf::from("/"))
-                .join(path);
-            &storage
-        } else {
-            path
-        };
+                .join(path)
+                .into();
+        }
 
-        f(&mut registry, path)
+        f(&mut registry, &path)
     }
 
     fn apply_mut_from_to<F, T>(&self, from: &Path, to: &Path, mut f: F) -> T
@@ -87,28 +84,24 @@ impl FakeFileSystem {
         F: FnMut(&mut MutexGuard<Registry>, &Path, &Path) -> T,
     {
         let mut registry = self.registry.lock().unwrap();
-        let from_storage;
-        let from = if from.is_relative() {
-            from_storage = registry
+        let mut from = Cow::from(from);
+        if from.is_relative() {
+            from = registry
                 .current_dir()
                 .unwrap_or_else(|_| PathBuf::from("/"))
-                .join(from);
-            &from_storage
-        } else {
-            from
-        };
-        let to_storage;
-        let to = if to.is_relative() {
-            to_storage = registry
+                .join(from)
+                .into();
+        }
+        let mut to = Cow::from(to);
+        if to.is_relative() {
+            to = registry
                 .current_dir()
                 .unwrap_or_else(|_| PathBuf::from("/"))
-                .join(to);
-            &to_storage
-        } else {
-            to
-        };
+                .join(to)
+                .into();
+        }
 
-        f(&mut registry, from, to)
+        f(&mut registry, &from, &to)
     }
 
     // Opens an existing file as write-only.
