@@ -6,6 +6,7 @@ use std::path::{Path, PathBuf};
 #[cfg(unix)]
 use filesystem::UnixFileSystem;
 use filesystem::{DirEntry, FakeFileSystem, FileSystem, OsFileSystem, TempDir, TempFileSystem};
+use filesystem::FileExt;
 
 macro_rules! make_test {
     ($test:ident, $fs:expr) => {
@@ -170,6 +171,10 @@ macro_rules! test_fs {
 
             make_test!(open_object_cannot_write, $fs);
             make_test!(create_object_cannot_read, $fs);
+
+            make_test!(set_len_on_create_object_truncates_file, $fs);
+            make_test!(set_len_on_create_object_extends_file, $fs);
+            make_test!(set_len_on_create_object_doesnt_change_cursor, $fs);
 
             #[cfg(unix)]
             make_test!(mode_returns_permissions, $fs);
@@ -1611,6 +1616,42 @@ fn create_object_cannot_read<T: FileSystem>(fs: &T, parent: &Path) {
     let result = writer.read_to_end(&mut buf);
     assert!(result.is_err());
     assert_eq!(result.unwrap_err().kind(), ErrorKind::Other);
+}
+
+fn set_len_on_create_object_truncates_file<T: FileSystem>(fs: &T, parent: &Path) {
+    let path = parent.join("test.txt");
+    let writer = fs.create(&path).unwrap();
+    fs.write_file(&path, b"test text").unwrap();
+
+    let result = writer.set_len(4);
+    assert!(result.is_ok());
+
+    let contents = fs.read_file(&path).unwrap();
+    assert_eq!(contents, b"test");
+}
+
+fn set_len_on_create_object_extends_file<T: FileSystem>(fs: &T, parent: &Path) {
+    let path = parent.join("test.txt");
+    let writer = fs.create(&path).unwrap();
+    fs.write_file(&path, b"test").unwrap();
+
+    let result = writer.set_len(9);
+    assert!(result.is_ok());
+
+    let contents = fs.read_file(&path).unwrap();
+    assert_eq!(contents, b"test\0\0\0\0\0");
+}
+
+fn set_len_on_create_object_doesnt_change_cursor<T: FileSystem>(fs: &T, parent: &Path) {
+    let path = parent.join("test.txt");
+    let mut writer = fs.create(&path).unwrap();
+    fs.write_file(&path, b"test").unwrap();
+
+    let result = writer.set_len(9);
+    assert!(result.is_ok());
+
+    let pos = writer.seek(SeekFrom::Current(0)).unwrap();
+    assert_eq!(pos, 0);
 }
 
 #[cfg(unix)]
