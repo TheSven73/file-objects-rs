@@ -113,16 +113,16 @@ impl FakeFileSystem {
 
     // Opens an existing file as write-only.
     // Does not modify the file on open.
-    fn open_writable<P: AsRef<Path>>(&self, path: P) -> Result<FakeFile> {
+    fn open_writable<P: AsRef<Path>>(&self, path: P) -> Result<FakeOpenFile> {
         self.apply(path.as_ref(), |r, p| {
             r.get_file_if_writable(p)
-                .map(|f| FakeFile::new(f, AccessMode::Write))
+                .map(|f| FakeOpenFile::new(f, AccessMode::Write))
         })
     }
 
     // Creates a new file as write-only.
     // Fails if the file already exists.
-    fn create_new<P: AsRef<Path>>(&self, path: P) -> Result<FakeFile> {
+    fn create_new<P: AsRef<Path>>(&self, path: P) -> Result<FakeOpenFile> {
         self.apply_mut(path.as_ref(), |r, p| {
             // make sure file does not exist
             // careful, check presence in a way that works even if
@@ -133,21 +133,21 @@ impl FakeFileSystem {
             // create it
             r.write_file(p, &[])?;
             r.get_file_if_writable(p)
-                .map(|f| FakeFile::new(f, AccessMode::Write))
+                .map(|f| FakeOpenFile::new(f, AccessMode::Write))
         })
     }
 
     // Opens an existing file as write-only.
     // Truncates on open.
     // Fails if the file does not exist.
-    fn overwrite<P: AsRef<Path>>(&self, path: P) -> Result<FakeFile> {
+    fn overwrite<P: AsRef<Path>>(&self, path: P) -> Result<FakeOpenFile> {
         self.apply(path.as_ref(), |r, p| {
             // overwite file
             // this ensure the file exists and we have
             // write access.
             r.overwrite_file(p, &[])?;
             let f = r.get_file_if_writable(p)?;
-            Ok(FakeFile::new(f, AccessMode::Write))
+            Ok(FakeOpenFile::new(f, AccessMode::Write))
         })
     }
 }
@@ -155,20 +155,20 @@ impl FakeFileSystem {
 impl FileSystem for FakeFileSystem {
     type DirEntry = DirEntry;
     type ReadDir = ReadDir;
-    type File = FakeFile;
+    type File = FakeOpenFile;
     type Permissions = FakePermissions;
 
     fn open<P: AsRef<Path>>(&self, path: P) -> Result<Self::File> {
         self.apply(path.as_ref(), |r, p|
             r.get_file_if_readable(p)
-                .map(|f| FakeFile::new(f, AccessMode::Read)))
+                .map(|f| FakeOpenFile::new(f, AccessMode::Read)))
     }
 
     fn create<P: AsRef<Path>>(&self, path: P) -> Result<Self::File> {
         self.apply_mut(path.as_ref(), |r, p| {
             r.write_file(p, &[])?;
             let f = r.get_file_if_writable(p)?;
-            Ok(FakeFile::new(f, AccessMode::Write))
+            Ok(FakeOpenFile::new(f, AccessMode::Write))
         })
     }
 
@@ -294,16 +294,18 @@ enum AccessMode {
 }
 
 #[derive(Debug)]
-pub struct FakeFile {
+pub struct FakeOpenFile {
+    /// Contents of the File we have open
     contents: SharedContents,
+    /// Mode of the File we have open
     file_mode: SharedMode,
     pos: usize,
     access_mode: AccessMode,
 }
 
-impl FakeFile {
+impl FakeOpenFile {
     fn new(file: &node::File, access_mode: AccessMode) -> Self {
-        FakeFile {
+        FakeOpenFile {
             contents: file.contents.clone(),
             file_mode : file.mode.clone(),
             pos: 0,
@@ -319,7 +321,7 @@ impl FakeFile {
     }
 }
 
-impl io::Read for FakeFile {
+impl io::Read for FakeOpenFile {
     fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
         self.verify_access(AccessMode::Read)?;
         let contents = self.contents.borrow();
@@ -339,7 +341,7 @@ impl io::Read for FakeFile {
     }
 }
 
-impl io::Seek for FakeFile {
+impl io::Seek for FakeOpenFile {
     fn seek(&mut self, pos: SeekFrom) -> Result<u64> {
         let pos = match pos {
             SeekFrom::Start(pos) => pos as i64,
@@ -356,7 +358,7 @@ impl io::Seek for FakeFile {
     }
 }
 
-impl io::Write for FakeFile {
+impl io::Write for FakeOpenFile {
     fn write(&mut self, buf: &[u8]) -> Result<usize> {
         self.verify_access(AccessMode::Write)?;
         let mut contents = self.contents.borrow_mut();
@@ -376,7 +378,7 @@ impl io::Write for FakeFile {
     }
 }
 
-impl FileExt for FakeFile {
+impl FileExt for FakeOpenFile {
     type Metadata = FakeMetadata;
 
     fn metadata(&self) -> Result<Self::Metadata> {
@@ -403,10 +405,10 @@ pub struct FakeMetadata {
 }
 
 impl FakeMetadata {
-    fn new(f: &FakeFile) -> Self {
+    fn new(of: &FakeOpenFile) -> Self {
         FakeMetadata {
-            len: f.contents.borrow().len() as u64,
-            permissions: FakePermissions::from(&f.file_mode),
+            len: of.contents.borrow().len() as u64,
+            permissions: FakePermissions::from(&of.file_mode),
         }
     }
 }
