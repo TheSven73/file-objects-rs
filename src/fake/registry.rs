@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use std::io::{Error, ErrorKind, Result};
-use std::path::{Path, PathBuf};
+use std::path::{Path, PathBuf, MAIN_SEPARATOR};
 
 use super::node::{Dir, File, Node};
 
@@ -12,7 +12,7 @@ pub struct Registry {
 
 impl Registry {
     pub fn new() -> Self {
-        let cwd = PathBuf::from("/");
+        let cwd = PathBuf::from(MAIN_SEPARATOR.to_string());
         let mut files = HashMap::new();
 
         files.insert(cwd.clone(), Node::Dir(Dir::default()));
