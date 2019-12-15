@@ -73,8 +73,8 @@ pub struct Dir {
     pub mode: SharedMode,
 }
 
-impl Dir {
-    pub fn new() -> Self {
+impl Default for Dir {
+    fn default() -> Self {
         Dir { mode: SharedMode::new(0o644) }
     }
 }

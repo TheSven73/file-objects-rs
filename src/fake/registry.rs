@@ -15,7 +15,7 @@ impl Registry {
         let cwd = PathBuf::from("/");
         let mut files = HashMap::new();
 
-        files.insert(cwd.clone(), Node::Dir(Dir::new()));
+        files.insert(cwd.clone(), Node::Dir(Dir::default()));
 
         Registry { cwd, files }
     }
@@ -43,7 +43,7 @@ impl Registry {
     }
 
     pub fn create_dir(&mut self, path: &Path) -> Result<()> {
-        self.insert(path.to_path_buf(), Node::Dir(Dir::new()))
+        self.insert(path.to_path_buf(), Node::Dir(Dir::default()))
     }
 
     pub fn create_dir_all(&mut self, path: &Path) -> Result<()> {
