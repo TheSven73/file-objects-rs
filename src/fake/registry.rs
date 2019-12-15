@@ -221,7 +221,7 @@ impl Registry {
             .ok_or_else(|| create_error(ErrorKind::NotFound))
     }
 
-    fn get_dir(&self, path: &Path) -> Result<&Dir> {
+    pub fn get_dir(&self, path: &Path) -> Result<&Dir> {
         self.get(path).and_then(|node| match node {
             Node::Dir(ref dir) => Ok(dir),
             Node::File(_) => Err(create_error(ErrorKind::Other)),

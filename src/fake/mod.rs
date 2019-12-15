@@ -191,7 +191,12 @@ impl FileSystem for FakeFileSystem {
 
     fn metadata<P: AsRef<Path>>(&self, path: P) -> Result<Self::Metadata> {
         self.apply(path.as_ref(), |r, p|
-            r.get_file(p).map(FakeMetadata::from))
+            if r.is_file(p) {
+                r.get_file(p).map(FakeMetadata::from)
+            } else {
+                r.get_dir(p).map(FakeMetadata::from)
+            }
+        )
     }
 
     fn current_dir(&self) -> Result<PathBuf> {
@@ -398,6 +403,7 @@ impl FileExt for FakeOpenFile {
 pub struct FakeMetadata {
     len: u64,
     permissions: FakePermissions,
+    is_dir: bool,
 }
 
 impl From<&node::File> for FakeMetadata {
@@ -405,6 +411,17 @@ impl From<&node::File> for FakeMetadata {
         FakeMetadata {
             len: f.contents.borrow().len() as u64,
             permissions: FakePermissions::from(&f.mode),
+            is_dir: false,
+        }
+    }
+}
+
+impl From<&node::Dir> for FakeMetadata {
+    fn from(d: &node::Dir) -> Self {
+        FakeMetadata {
+            len: 4096,
+            permissions: FakePermissions::from(&d.mode),
+            is_dir: true,
         }
     }
 }
@@ -413,11 +430,11 @@ impl Metadata for FakeMetadata {
     type Permissions = FakePermissions;
 
     fn is_dir(&self) -> bool {
-        false
+        self.is_dir
     }
 
     fn is_file(&self) -> bool {
-        true
+        !self.is_dir
     }
 
     fn len(&self) -> u64 {
