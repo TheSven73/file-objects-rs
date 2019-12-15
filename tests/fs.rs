@@ -3,8 +3,6 @@ extern crate filesystem;
 use std::io::{self, ErrorKind, Read, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
 
-#[cfg(unix)]
-use filesystem::UnixFileSystem;
 use filesystem::{DirEntry, FakeFileSystem, FileSystem, OsFileSystem, TempDir, TempFileSystem};
 use filesystem::{FileExt, Metadata, OpenOptions, Permissions};
 
@@ -314,6 +312,22 @@ fn readonly<P: AsRef<Path>, T: FileSystem>(fs: &T, path: P) -> io::Result<bool>
     Ok(fs.metadata(&path)?.permissions().readonly())
 }
 
+// Used to be part of the public API.
+// Keep around for the tests.
+#[cfg(unix)]
+fn set_mode<P: AsRef<Path>, T: FileSystem>(fs: &T, path: P, mode: u32) -> io::Result<()> {
+    let mut perms = fs.metadata(&path)?.permissions();
+    perms.set_mode(mode);
+    fs.set_permissions(&path, perms)
+}
+
+// Used to be part of the public API.
+// Keep around for the tests.
+#[cfg(unix)]
+fn mode<P: AsRef<Path>, T: FileSystem>(fs: &T, path: P) -> io::Result<u32> {
+    Ok(fs.metadata(&path)?.permissions().mode())
+}
+
 fn set_current_dir_fails_if_node_does_not_exists<T: FileSystem>(fs: &T, parent: &Path) {
     let path = parent.join("does_not_exist");
 
@@ -509,7 +523,7 @@ fn remove_dir_all_fails_if_node_is_a_file<T: FileSystem>(fs: &T, parent: &Path) 
 
 #[cfg(unix)]
 fn remove_dir_all_removes_dir_and_contents_if_descendant_not_writable<
-    T: FileSystem + UnixFileSystem,
+    T: FileSystem,
 >(
     fs: &T,
     parent: &Path,
@@ -522,7 +536,7 @@ fn remove_dir_all_removes_dir_and_contents_if_descendant_not_writable<
     fs.create_dir(&path).unwrap();
     fs.create_dir(&child).unwrap();
 
-    fs.set_mode(&child, mode).unwrap();
+    set_mode(fs, &child, mode).unwrap();
 
     let result = fs.remove_dir_all(&path);
 
@@ -533,7 +547,7 @@ fn remove_dir_all_removes_dir_and_contents_if_descendant_not_writable<
 
 #[cfg(unix)]
 fn remove_dir_all_removes_dir_and_contents_if_descendant_not_executable<
-    T: FileSystem + UnixFileSystem,
+    T: FileSystem,
 >(
     fs: &T,
     parent: &Path,
@@ -546,7 +560,7 @@ fn remove_dir_all_removes_dir_and_contents_if_descendant_not_executable<
     fs.create_dir(&path).unwrap();
     fs.create_dir(&child).unwrap();
 
-    fs.set_mode(&child, mode).unwrap();
+    set_mode(fs, &child, mode).unwrap();
 
     let result = fs.remove_dir_all(&path);
 
@@ -556,7 +570,7 @@ fn remove_dir_all_removes_dir_and_contents_if_descendant_not_executable<
 }
 
 #[cfg(unix)]
-fn remove_dir_all_fails_if_descendant_not_readable<T: FileSystem + UnixFileSystem>(
+fn remove_dir_all_fails_if_descendant_not_readable<T: FileSystem>(
     fs: &T,
     parent: &Path,
 ) {
@@ -568,7 +582,7 @@ fn remove_dir_all_fails_if_descendant_not_readable<T: FileSystem + UnixFileSyste
     fs.create_dir(&path).unwrap();
     fs.create_dir(&child).unwrap();
 
-    fs.set_mode(&child, mode).unwrap();
+    set_mode(fs, &child, mode).unwrap();
 
     let result = fs.remove_dir_all(&path);
 
@@ -2048,47 +2062,47 @@ fn canonicalize_fails_if_subpath_is_file<T: FileSystem>(fs: &T, parent: &Path) {
 }
 
 #[cfg(unix)]
-fn mode_returns_permissions<T: FileSystem + UnixFileSystem>(fs: &T, parent: &Path) {
+fn mode_returns_permissions<T: FileSystem>(fs: &T, parent: &Path) {
     let path = parent.join("file");
 
     create_file(fs, &path, "").unwrap();
-    fs.set_mode(&path, 0o644).unwrap();
+    set_mode(fs, &path, 0o644).unwrap();
 
-    let result = fs.mode(&path);
+    let result = mode(fs, &path);
 
     assert!(result.is_ok());
     assert_eq!(result.unwrap() % 0o100_000, 0o644);
 
-    fs.set_mode(&path, 0o600).unwrap();
+    set_mode(fs, &path, 0o600).unwrap();
 
-    let result = fs.mode(&path);
+    let result = mode(fs, &path);
 
     assert!(result.is_ok());
     assert_eq!(result.unwrap() % 0o100_000, 0o600);
 
     set_readonly(fs, &path, true).unwrap();
 
-    let result = fs.mode(&path);
+    let result = mode(fs, &path);
 
     assert!(result.is_ok());
     assert_eq!(result.unwrap() % 0o100_000, 0o400);
 }
 
 #[cfg(unix)]
-fn mode_fails_if_node_does_not_exist<T: UnixFileSystem>(fs: &T, parent: &Path) {
-    let result = fs.mode(parent.join("does_not_exist"));
+fn mode_fails_if_node_does_not_exist<T: FileSystem>(fs: &T, parent: &Path) {
+    let result = mode(fs, parent.join("does_not_exist"));
 
     assert!(result.is_err());
     assert_eq!(result.unwrap_err().kind(), ErrorKind::NotFound);
 }
 
 #[cfg(unix)]
-fn set_mode_sets_permissions<T: FileSystem + UnixFileSystem>(fs: &T, parent: &Path) {
+fn set_mode_sets_permissions<T: FileSystem + FileSystem>(fs: &T, parent: &Path) {
     let path = parent.join("file");
 
     create_file(fs, &path, "").unwrap();
 
-    let result = fs.set_mode(&path, 0o000);
+    let result = set_mode(fs, &path, 0o000);
 
     assert!(result.is_ok());
 
@@ -2108,7 +2122,7 @@ fn set_mode_sets_permissions<T: FileSystem + UnixFileSystem>(fs: &T, parent: &Pa
         ErrorKind::PermissionDenied
     );
 
-    let result = fs.set_mode(&path, 0o200);
+    let result = set_mode(fs, &path, 0o200);
 
     assert!(result.is_ok());
 
@@ -2124,7 +2138,7 @@ fn set_mode_sets_permissions<T: FileSystem + UnixFileSystem>(fs: &T, parent: &Pa
     assert!(readonly_result.is_ok());
     assert!(!readonly_result.unwrap());
 
-    let result = fs.set_mode(&path, 0o644);
+    let result = set_mode(fs, &path, 0o644);
 
     assert!(result.is_ok());
 
@@ -2135,8 +2149,8 @@ fn set_mode_sets_permissions<T: FileSystem + UnixFileSystem>(fs: &T, parent: &Pa
 }
 
 #[cfg(unix)]
-fn set_mode_fails_if_node_does_not_exist<T: UnixFileSystem>(fs: &T, parent: &Path) {
-    let result = fs.set_mode(parent.join("does_not_exist"), 0o644);
+fn set_mode_fails_if_node_does_not_exist<T: FileSystem>(fs: &T, parent: &Path) {
+    let result = set_mode(fs, parent.join("does_not_exist"), 0o644);
 
     assert!(result.is_err());
     assert_eq!(result.unwrap_err().kind(), ErrorKind::NotFound);

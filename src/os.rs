@@ -9,8 +9,6 @@ use std::path::{Path, PathBuf};
 #[cfg(feature = "temp")]
 use tempdir;
 
-#[cfg(unix)]
-use UnixFileSystem;
 use {DirEntry, FileSystem, ReadDir, FileExt, Metadata, Permissions};
 #[cfg(feature = "temp")]
 use {TempDir, TempFileSystem};
@@ -186,6 +184,21 @@ impl Permissions for fs::Permissions {
     fn set_readonly(&mut self, readonly: bool) {
         self.set_readonly(readonly)
     }
+
+    #[cfg(unix)]
+    fn mode(&self) -> u32 {
+        PermissionsExt::mode(self)
+    }
+
+    #[cfg(unix)]
+    fn set_mode(&mut self, mode: u32) {
+        PermissionsExt::set_mode(self, mode);
+    }
+
+    #[cfg(unix)]
+    fn from_mode(mode: u32) -> Self {
+        PermissionsExt::from_mode(mode)
+    }
 }
 
 impl DirEntry for fs::DirEntry {
@@ -200,21 +213,6 @@ impl DirEntry for fs::DirEntry {
 
 impl ReadDir<fs::DirEntry> for fs::ReadDir {}
 
-#[cfg(unix)]
-impl UnixFileSystem for OsFileSystem {
-    fn mode<P: AsRef<Path>>(&self, path: P) -> Result<u32> {
-        permissions(path.as_ref()).map(|p| p.mode())
-    }
-
-    fn set_mode<P: AsRef<Path>>(&self, path: P, mode: u32) -> Result<()> {
-        let mut permissions = permissions(path.as_ref())?;
-
-        permissions.set_mode(mode);
-
-        fs::set_permissions(path, permissions)
-    }
-}
-
 #[cfg(feature = "temp")]
 impl TempFileSystem for OsFileSystem {
     type TempDir = OsTempDir;
@@ -222,10 +220,4 @@ impl TempFileSystem for OsFileSystem {
     fn temp_dir<S: AsRef<str>>(&self, prefix: S) -> Result<Self::TempDir> {
         tempdir::TempDir::new(prefix.as_ref()).map(OsTempDir)
     }
-}
-
-fn permissions(path: &Path) -> Result<fs::Permissions> {
-    let metadata = fs::metadata(path)?;
-
-    Ok(metadata.permissions())
 }

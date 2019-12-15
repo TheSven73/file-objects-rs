@@ -244,24 +244,27 @@ pub trait Permissions {
     ///
     /// [`fs::Permissions::set_readonly`]: https://doc.rust-lang.org/std/fs/struct.Permissions.html#method.set_readonly
     fn set_readonly(&mut self, readonly: bool);
-}
 
-#[cfg(unix)]
-pub trait UnixFileSystem {
-    /// Returns the current mode bits of `path`.
+    /// Returns the underlying raw st_mode bits that contain the standard Unix permissions for this file.
+    /// This is based on [`os::unix::fs::PermissionsExt::mode`].
     ///
-    /// # Errors
+    /// [`os::unix::fs::PermissionsExt::mode`]: https://doc.rust-lang.org/std/os/unix/fs/trait.PermissionsExt.html#tymethod.mode
+    #[cfg(unix)]
+    fn mode(&self) -> u32;
+
+    /// Sets the underlying raw bits for this set of permissions.
+    /// This is based on [`os::unix::fs::PermissionsExt::set_mode`].
     ///
-    /// * `path` does not exist.
-    /// * Current user has insufficient permissions.
-    fn mode<P: AsRef<Path>>(&self, path: P) -> Result<u32>;
-    /// Sets the mode bits of `path`.
+    /// [`os::unix::fs::PermissionsExt::set_mode`]: https://doc.rust-lang.org/std/os/unix/fs/trait.PermissionsExt.html#tymethod.set_mode
+    #[cfg(unix)]
+    fn set_mode(&mut self, mode: u32);
+
+    /// Creates a new instance of Permissions from the given set of Unix permission bits.
+    /// This is based on [`os::unix::fs::PermissionsExt::from_mode`].
     ///
-    /// # Errors
-    ///
-    /// * `path` does not exist.
-    /// * Current user has insufficient permissions.
-    fn set_mode<P: AsRef<Path>>(&self, path: P, mode: u32) -> Result<()>;
+    /// [`os::unix::fs::PermissionsExt::from_mode`]: https://doc.rust-lang.org/std/os/unix/fs/trait.PermissionsExt.html#tymethod.from_mode
+    #[cfg(unix)]
+    fn from_mode(mode: u32) -> Self;
 }
 
 #[cfg(feature = "temp")]

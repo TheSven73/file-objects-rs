@@ -15,8 +15,6 @@ use FileSystem;
 use FileExt;
 use Metadata;
 use Permissions;
-#[cfg(unix)]
-use UnixFileSystem;
 #[cfg(feature = "temp")]
 use {TempDir, TempFileSystem};
 
@@ -184,6 +182,13 @@ impl FileSystem for FakeFileSystem {
         }
     }
 
+    #[cfg(unix)]
+    fn set_permissions<P: AsRef<Path>>(&self, path: P, perm: Self::Permissions) -> Result<()>
+    {
+        self.apply(path.as_ref(), |r, p| r.set_mode(p, perm.mode()))
+    }
+
+    #[cfg(not(unix))]
     fn set_permissions<P: AsRef<Path>>(&self, path: P, perm: Self::Permissions) -> Result<()>
     {
         self.apply(path.as_ref(), |r, p| r.set_readonly(p, perm.readonly()))
@@ -439,20 +444,36 @@ impl Metadata for FakeMetadata {
 }
 
 #[derive(Debug, Clone)]
-pub struct FakePermissions(bool);
+pub struct FakePermissions(u32);
 
 impl From<&SharedMode> for FakePermissions {
     fn from(mode: &SharedMode) -> FakePermissions {
-        FakePermissions(!mode.can_write())
+        FakePermissions(mode.get())
     }
 }
 
 impl Permissions for FakePermissions {
     fn readonly(&self) -> bool {
-        self.0
+        (self.0 & 0o222) == 0
     }
     fn set_readonly(&mut self, readonly: bool) {
-        self.0 = readonly;
+        if readonly {
+            self.0 &= !0o222;
+        } else {
+            self.0 |= 0o222;
+        }
+    }
+    #[cfg(unix)]
+    fn mode(&self) -> u32 {
+        self.0
+    }
+    #[cfg(unix)]
+    fn set_mode(&mut self, mode: u32) {
+        self.0 = mode;
+    }
+    #[cfg(unix)]
+    fn from_mode(mode: u32) -> Self {
+        FakePermissions(mode)
     }
 }
 
@@ -503,17 +524,6 @@ impl Iterator for ReadDir {
 }
 
 impl crate::ReadDir<DirEntry> for ReadDir {}
-
-#[cfg(unix)]
-impl UnixFileSystem for FakeFileSystem {
-    fn mode<P: AsRef<Path>>(&self, path: P) -> Result<u32> {
-        self.apply(path.as_ref(), |r, p| r.mode(p))
-    }
-
-    fn set_mode<P: AsRef<Path>>(&self, path: P, mode: u32) -> Result<()> {
-        self.apply_mut(path.as_ref(), |r, p| r.set_mode(p, mode))
-    }
-}
 
 #[cfg(feature = "temp")]
 impl TempFileSystem for FakeFileSystem {
