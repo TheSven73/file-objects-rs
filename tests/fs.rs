@@ -181,6 +181,14 @@ macro_rules! test_fs {
             make_test!(create_object_metadata_has_correct_len, $fs);
             make_test!(create_object_metadata_len_is_immutable, $fs);
 
+            make_test!(fs_file_metadata_is_file, $fs);
+            make_test!(fs_file_metadata_has_correct_len, $fs);
+            make_test!(fs_file_metadata_len_is_immutable, $fs);
+            make_test!(fs_file_metadata_fails_if_file_doesn_exist, $fs);
+
+            make_test!(fs_dir_metadata_is_dir, $fs);
+            make_test!(fs_dir_metadata_has_correct_len, $fs);
+
             make_test!(writable_object_does_not_create_file, $fs);
             make_test!(writable_object_sets_cursor_to_beginning, $fs);
             make_test!(writable_object_allows_append, $fs);
@@ -1744,6 +1752,60 @@ fn set_len_on_create_object_doesnt_change_cursor<T: FileSystem>(fs: &T, parent: 
 
     let pos = writer.seek(SeekFrom::Current(0)).unwrap();
     assert_eq!(pos, 0);
+}
+
+fn fs_dir_metadata_is_dir<T: FileSystem>(fs: &T, parent: &Path) {
+    let path = parent.join("test");
+    fs.create_dir(&path).unwrap();
+
+    let md = fs.metadata(&path).unwrap();
+    assert!(!md.is_file());
+    assert!(md.is_dir());
+}
+
+fn fs_dir_metadata_has_correct_len<T: FileSystem>(fs: &T, parent: &Path) {
+    let path = parent.join("test.txt");
+    fs.create_dir(&path).unwrap();
+
+    let md = fs.metadata(&path).unwrap();
+    // to keep things portable, don't test for a particular value
+    assert_ne!(md.len(), 0);
+}
+
+fn fs_file_metadata_is_file<T: FileSystem>(fs: &T, parent: &Path) {
+    let path = parent.join("test.txt");
+    write_file(fs, &path, b"test text").unwrap();
+
+    let md = fs.metadata(&path).unwrap();
+    assert!(md.is_file());
+    assert!(!md.is_dir());
+}
+
+fn fs_file_metadata_has_correct_len<T: FileSystem>(fs: &T, parent: &Path) {
+    let path = parent.join("test.txt");
+    write_file(fs, &path, b"test text").unwrap();
+
+    let md = fs.metadata(&path).unwrap();
+    assert_eq!(md.len(), 9);
+}
+
+fn fs_file_metadata_len_is_immutable<T: FileSystem>(fs: &T, parent: &Path) {
+    let path = parent.join("test.txt");
+    write_file(fs, &path, b"test text").unwrap();
+    let md = fs.metadata(&path).unwrap();
+
+    assert_eq!(md.len(), 9);
+
+    write_file(fs, &path, b"hi").unwrap();
+    assert_eq!(md.len(), 9);
+}
+
+fn fs_file_metadata_fails_if_file_doesn_exist<T: FileSystem>(fs: &T, parent: &Path) {
+    let path = parent.join("does_not_exist");
+    let result = fs.metadata(&path);
+
+    assert!(result.is_err());
+    assert_eq!(result.unwrap_err().kind(), ErrorKind::NotFound);
 }
 
 fn open_object_metadata_is_file<T: FileSystem>(fs: &T, parent: &Path) {

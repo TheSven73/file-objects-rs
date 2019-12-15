@@ -200,7 +200,7 @@ pub trait FileExt {
 ///
 /// [`fs::Metadata`]: https://doc.rust-lang.org/std/fs/struct.Metadata.html
 #[allow(clippy::len_without_is_empty)]
-pub trait Metadata {
+pub trait Metadata: fmt::Debug {
     type Permissions: Permissions;
 
     /// Returns true if this metadata is for a directory.
