@@ -271,14 +271,6 @@ impl FileSystem for FakeFileSystem {
         self.apply_mut_from_to(from.as_ref(), to.as_ref(), |r, from, to| r.rename(from, to))
     }
 
-    fn readonly<P: AsRef<Path>>(&self, path: P) -> Result<bool> {
-        self.apply(path.as_ref(), |r, p| r.readonly(p))
-    }
-
-    fn set_readonly<P: AsRef<Path>>(&self, path: P, readonly: bool) -> Result<()> {
-        self.apply(path.as_ref(), |r, p| r.set_readonly(p, readonly))
-    }
-
     fn canonicalize<P: AsRef<Path>>(&self, path: P) -> Result<PathBuf> {
         let path = path.as_ref();
         // special case: empty paths must always fail

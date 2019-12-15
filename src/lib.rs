@@ -135,21 +135,6 @@ pub trait FileSystem: Clone + Send + Sync {
         P: AsRef<Path>,
         Q: AsRef<Path>;
 
-    /// Returns `true` if `path` is a readonly file.
-    ///
-    /// # Errors
-    ///
-    /// * `path` does not exist.
-    /// * Current user has insufficient permissions.
-    fn readonly<P: AsRef<Path>>(&self, path: P) -> Result<bool>;
-    /// Sets or unsets the readonly flag of `path`.
-    ///
-    /// # Errors
-    ///
-    /// * `path` does not exist.
-    /// * Current user has insufficient permissions.
-    fn set_readonly<P: AsRef<Path>>(&self, path: P, readonly: bool) -> Result<()>;
-
     /// Returns the canonical, absolute form of a path with all intermediate components
     /// normalized and symbolic links resolved.
     /// This is based on [`fs::canonicalize`].

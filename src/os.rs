@@ -135,18 +135,6 @@ impl FileSystem for OsFileSystem {
         fs::rename(from, to)
     }
 
-    fn readonly<P: AsRef<Path>>(&self, path: P) -> Result<bool> {
-        permissions(path.as_ref()).map(|p| p.readonly())
-    }
-
-    fn set_readonly<P: AsRef<Path>>(&self, path: P, readonly: bool) -> Result<()> {
-        let mut permissions = permissions(path.as_ref())?;
-
-        permissions.set_readonly(readonly);
-
-        fs::set_permissions(path, permissions)
-    }
-
     fn canonicalize<P: AsRef<Path>>(&self, path: P) -> Result<PathBuf> {
         fs::canonicalize(path)
     }

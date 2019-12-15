@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 #[cfg(unix)]
 use filesystem::UnixFileSystem;
 use filesystem::{DirEntry, FakeFileSystem, FileSystem, OsFileSystem, TempDir, TempFileSystem};
-use filesystem::{FileExt, Metadata, OpenOptions};
+use filesystem::{FileExt, Metadata, OpenOptions, Permissions};
 
 macro_rules! make_test {
     ($test:ident, $fs:expr) => {
@@ -288,6 +288,22 @@ where
     let opts = OpenOptions::new().write(true).truncate(true);
     let mut writer = fs.open_with_options(path, &opts)?;
     writer.write_all(buf.as_ref())
+}
+
+// Used to be part of the public API.
+// Keep around for the tests.
+fn set_readonly<T: FileSystem, P: AsRef<Path>>(fs: &T, path: P, readonly: bool) -> io::Result<()>
+{
+    let mut p = fs.metadata(&path)?.permissions();
+    p.set_readonly(readonly);
+    fs.set_permissions(&path, p)
+}
+
+// Used to be part of the public API.
+// Keep around for the tests.
+fn readonly<P: AsRef<Path>, T: FileSystem>(fs: &T, path: P) -> io::Result<bool>
+{
+    Ok(fs.metadata(&path)?.permissions().readonly())
 }
 
 fn set_current_dir_fails_if_node_does_not_exists<T: FileSystem>(fs: &T, parent: &Path) {
@@ -624,7 +640,7 @@ fn create_object_fails_if_file_is_readonly<T: FileSystem>(fs: &T, parent: &Path)
     let path = parent.join("test_file");
 
     create_file(fs, &path, "").unwrap();
-    fs.set_readonly(&path, true).unwrap();
+    set_readonly(fs, &path, true).unwrap();
 
     let result = fs.create(&path);
 
@@ -661,7 +677,7 @@ fn write_file_fails_if_file_is_readonly<T: FileSystem>(fs: &T, parent: &Path) {
     let path = parent.join("test_file");
 
     create_file(fs, &path, "").unwrap();
-    fs.set_readonly(&path, true).unwrap();
+    set_readonly(fs, &path, true).unwrap();
 
     let result = write_file(fs, &path, "test contents");
 
@@ -706,7 +722,7 @@ fn overwrite_file_fails_if_file_is_readonly<T: FileSystem>(fs: &T, parent: &Path
     let path = parent.join("test_file");
 
     create_file(fs, &path, "").unwrap();
-    fs.set_readonly(&path, true).unwrap();
+    set_readonly(fs, &path, true).unwrap();
 
     let result = overwrite_file(fs, &path, "test contents");
 
@@ -926,7 +942,7 @@ fn copy_file_fails_if_destination_file_is_readonly<T: FileSystem>(fs: &T, parent
 
     create_file(fs, &from, "test").unwrap();
     create_file(fs, &to, "").unwrap();
-    fs.set_readonly(&to, true).unwrap();
+    set_readonly(fs, &to, true).unwrap();
 
     let result = fs.copy_file(&from, &to);
 
@@ -1109,21 +1125,21 @@ fn readonly_returns_write_permission<T: FileSystem>(fs: &T, parent: &Path) {
 
     create_file(fs, &path, "").unwrap();
 
-    let result = fs.readonly(&path);
+    let result = readonly(fs, &path);
 
     assert!(result.is_ok());
     assert!(!result.unwrap());
 
-    fs.set_readonly(&path, true).unwrap();
+    set_readonly(fs, &path, true).unwrap();
 
-    let result = fs.readonly(&path);
+    let result = readonly(fs, &path);
 
     assert!(result.is_ok());
     assert!(result.unwrap());
 }
 
 fn readonly_fails_if_node_does_not_exist<T: FileSystem>(fs: &T, parent: &Path) {
-    let result = fs.readonly(parent.join("does_not_exist"));
+    let result = readonly(fs, parent.join("does_not_exist"));
 
     assert!(result.is_err());
     assert_eq!(result.unwrap_err().kind(), ErrorKind::NotFound);
@@ -1134,12 +1150,12 @@ fn set_readonly_toggles_write_permission_of_file<T: FileSystem>(fs: &T, parent: 
 
     create_file(fs, &path, "").unwrap();
 
-    let result = fs.set_readonly(&path, true);
+    let result = set_readonly(fs, &path, true);
 
     assert!(result.is_ok());
     assert!(write_file(fs, &path, "readonly").is_err());
 
-    let result = fs.set_readonly(&path, false);
+    let result = set_readonly(fs, &path, false);
 
     assert!(result.is_ok());
     assert!(write_file(fs, &path, "no longer readonly").is_ok());
@@ -1150,24 +1166,24 @@ fn set_readonly_toggles_write_permission_of_dir<T: FileSystem>(fs: &T, parent: &
 
     fs.create_dir(&path).unwrap();
 
-    let result = fs.set_readonly(&path, true);
+    let result = set_readonly(fs, &path, true);
 
     assert!(result.is_ok());
     assert!(write_file(fs, &path.join("file"), "").is_err());
 
-    let result = fs.set_readonly(&path, false);
+    let result = set_readonly(fs, &path, false);
 
     assert!(result.is_ok());
     assert!(write_file(fs, &path.join("file"), "").is_ok());
 }
 
 fn set_readonly_fails_if_node_does_not_exist<T: FileSystem>(fs: &T, parent: &Path) {
-    let result = fs.set_readonly(parent.join("does_not_exist"), true);
+    let result = set_readonly(fs, parent.join("does_not_exist"), true);
 
     assert!(result.is_err());
     assert_eq!(result.unwrap_err().kind(), ErrorKind::NotFound);
 
-    let result = fs.set_readonly(parent.join("does_not_exist"), true);
+    let result = set_readonly(fs, parent.join("does_not_exist"), true);
 
     assert!(result.is_err());
     assert_eq!(result.unwrap_err().kind(), ErrorKind::NotFound);
@@ -1988,7 +2004,7 @@ fn mode_returns_permissions<T: FileSystem + UnixFileSystem>(fs: &T, parent: &Pat
     assert!(result.is_ok());
     assert_eq!(result.unwrap() % 0o100_000, 0o600);
 
-    fs.set_readonly(&path, true).unwrap();
+    set_readonly(fs, &path, true).unwrap();
 
     let result = fs.mode(&path);
 
@@ -2014,7 +2030,7 @@ fn set_mode_sets_permissions<T: FileSystem + UnixFileSystem>(fs: &T, parent: &Pa
 
     assert!(result.is_ok());
 
-    let readonly_result = fs.readonly(&path);
+    let readonly_result = readonly(fs, &path);
 
     assert!(readonly_result.is_ok());
     assert!(readonly_result.unwrap());
@@ -2041,7 +2057,7 @@ fn set_mode_sets_permissions<T: FileSystem + UnixFileSystem>(fs: &T, parent: &Pa
     assert!(write_result.is_ok());
     assert_eq!(read_result.unwrap_err().kind(), ErrorKind::PermissionDenied);
 
-    let readonly_result = fs.readonly(&path);
+    let readonly_result = readonly(fs, &path);
 
     assert!(readonly_result.is_ok());
     assert!(!readonly_result.unwrap());
@@ -2050,7 +2066,7 @@ fn set_mode_sets_permissions<T: FileSystem + UnixFileSystem>(fs: &T, parent: &Pa
 
     assert!(result.is_ok());
 
-    let readonly_result = fs.readonly(&path);
+    let readonly_result = readonly(fs, &path);
 
     assert!(readonly_result.is_ok());
     assert!(!readonly_result.unwrap());
