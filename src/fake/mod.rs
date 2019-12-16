@@ -178,7 +178,8 @@ impl FileSystem for FakeFileSystem {
             o if *o == o_open_writable  => self.open_writable(path),
             o if *o == o_create_new     => self.create_new(path),
             o if *o == o_overwrite      => self.overwrite(path),
-             _ => Err(create_error(ErrorKind::InvalidInput)),
+             _ => Err(io::Error::new(ErrorKind::InvalidInput,
+                        format!("FakeFileSystem: Unsupported {:?}", o))),
         }
     }
 
