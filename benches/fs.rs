@@ -77,16 +77,15 @@ fn read_file(bench: &mut Bencher) {
     });
 }
 
-// no support for seek just yet
-// fn seek_in_writer(bench: &mut Bencher) {
-//     let fs = FakeFileSystem::new();
-//     let path = fs.current_dir().unwrap().join("hello.txt");
-//     let mut writer = fs.create(&path).unwrap();
-//     writer.write_all(b"the quick brown fox").unwrap();
-//     bench.iter( || {
-//         writer.seek(SeekFrom::Start(0)).unwrap();
-//     });
-// }
+fn seek_in_reader(bench: &mut Bencher) {
+    let fs = FakeFileSystem::new();
+    let path = fs.current_dir().unwrap().join("hello.txt");
+    fs.create_file(&path, b"the quick brown fox").unwrap();
+    let mut reader = fs.open(&path).unwrap();
+    bench.iter( || {
+        reader.seek(SeekFrom::Start(0)).unwrap();
+    });
+}
 
 fn create_dir_relative(bench: &mut Bencher) {
     let fs = FakeFileSystem::new();
@@ -180,7 +179,7 @@ benchmark_group!(benches,
     create_file_long_filename,
     write_file,
     read_file,
-    //seek_in_writer,
+    seek_in_reader,
     create_dir_relative,
     create_dir_absolute,
     open_file_with_large_fs,
