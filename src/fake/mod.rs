@@ -1,7 +1,7 @@
 use std::ffi::{OsStr, OsString};
 use std::io::{self, Result, SeekFrom};
 use std::iter::Iterator;
-use std::path::{Path, PathBuf};
+use std::path::{Path, PathBuf, MAIN_SEPARATOR};
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::vec::IntoIter;
 use std::cmp::min;
@@ -34,6 +34,17 @@ pub struct FakeFileSystem {
     registry: Arc<Mutex<Registry>>,
 }
 
+fn to_absolute_path<F>(mut path: Cow<'_, Path>, get_current_dir: F) -> Cow<'_, Path>
+where F: FnOnce() -> Result<PathBuf> {
+    if path.is_relative() {
+        path = get_current_dir()
+            .unwrap_or_else(|_| PathBuf::from(MAIN_SEPARATOR.to_string()))
+            .join(path)
+            .into();
+    }
+    path
+}
+
 impl FakeFileSystem {
     pub fn new() -> Self {
         let registry = Registry::new();
@@ -48,14 +59,7 @@ impl FakeFileSystem {
         F: FnOnce(&MutexGuard<Registry>, &Path) -> T,
     {
         let registry = self.registry.lock().unwrap();
-        let mut path = Cow::from(path);
-        if path.is_relative() {
-            path = registry
-                .current_dir()
-                .unwrap_or_else(|_| PathBuf::from("/"))
-                .join(path)
-                .into();
-        }
+        let path = to_absolute_path(Cow::from(path), || registry.current_dir());
 
         f(&registry, &path)
     }
@@ -65,14 +69,7 @@ impl FakeFileSystem {
         F: FnMut(&mut MutexGuard<Registry>, &Path) -> T,
     {
         let mut registry = self.registry.lock().unwrap();
-        let mut path = Cow::from(path);
-        if path.is_relative() {
-            path = registry
-                .current_dir()
-                .unwrap_or_else(|_| PathBuf::from("/"))
-                .join(path)
-                .into();
-        }
+        let path = to_absolute_path(Cow::from(path), || registry.current_dir());
 
         f(&mut registry, &path)
     }
@@ -82,22 +79,8 @@ impl FakeFileSystem {
         F: FnMut(&mut MutexGuard<Registry>, &Path, &Path) -> T,
     {
         let mut registry = self.registry.lock().unwrap();
-        let mut from = Cow::from(from);
-        if from.is_relative() {
-            from = registry
-                .current_dir()
-                .unwrap_or_else(|_| PathBuf::from("/"))
-                .join(from)
-                .into();
-        }
-        let mut to = Cow::from(to);
-        if to.is_relative() {
-            to = registry
-                .current_dir()
-                .unwrap_or_else(|_| PathBuf::from("/"))
-                .join(to)
-                .into();
-        }
+        let from = to_absolute_path(Cow::from(from), || registry.current_dir());
+        let to   = to_absolute_path(Cow::from(to  ), || registry.current_dir());
 
         f(&mut registry, &from, &to)
     }
