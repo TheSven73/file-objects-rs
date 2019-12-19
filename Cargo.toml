@@ -25,6 +25,10 @@ test = false
 name = "fs"
 required-features = ["fake", "temp"]
 
+[[bench]]
+name = "fs"
+harness = false
+
 [features]
 default = ["fake", "temp"]
 
@@ -34,6 +38,9 @@ temp = ["rand", "tempdir"]
 [dependencies]
 rand = { version = "^0.4", optional = true }
 tempdir = { version = "^0.3", optional = true }
+
+[dev-dependencies]
+bencher = "0.1.5" # for benches on stable
 
 [badges]
 travis-ci = { repository = "iredelmeier/filesystem-rs" }
