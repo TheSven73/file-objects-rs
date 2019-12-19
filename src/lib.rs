@@ -1,3 +1,5 @@
+#![warn(clippy::all)]
+
 #[cfg(feature = "temp")]
 extern crate rand;
 #[cfg(feature = "temp")]
