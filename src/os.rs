@@ -9,9 +9,9 @@ use std::path::{Path, PathBuf};
 #[cfg(feature = "temp")]
 use tempdir;
 
-use {DirEntry, FileSystem, ReadDir, FileExt, Metadata, Permissions};
+use super::{DirEntry, FileSystem, ReadDir, FileExt, Metadata, Permissions};
 #[cfg(feature = "temp")]
-use {TempDir, TempFileSystem};
+use super::{TempDir, TempFileSystem};
 
 /// Tracks a temporary directory that will be deleted once the struct goes out of scope.
 ///

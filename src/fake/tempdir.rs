@@ -4,7 +4,7 @@ use std::sync::{Mutex, Weak};
 use rand;
 use rand::Rng;
 
-use TempDir;
+use super::TempDir;
 
 use super::Registry;
 

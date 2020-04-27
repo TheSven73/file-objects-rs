@@ -1,10 +1,5 @@
 #![warn(clippy::all)]
 
-#[cfg(feature = "temp")]
-extern crate rand;
-#[cfg(feature = "temp")]
-extern crate tempdir;
-
 use std::ffi::OsString;
 use std::io::{self, Result};
 use std::fmt;

@@ -3,6 +3,7 @@ name = "filesystem"
 version = "0.4.4"
 description = "Real, fake, and mock implementations of file system operations"
 authors = ["Isobel Redelmeier <iredelmeier@gmail.com>"]
+edition = "2018"
 license = "MIT"
 repository = "https://github.com/iredelmeier/filesystem-rs"
 readme = "README.md"
@@ -19,7 +20,7 @@ keywords = [
 [lib]
 bench = false
 doctest = false
-test = false
+test = true
 
 [[test]]
 name = "fs"

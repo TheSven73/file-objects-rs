@@ -7,16 +7,13 @@ use std::vec::IntoIter;
 use std::cmp::min;
 use std::io::ErrorKind;
 use std::borrow::Cow;
-use fake::node::{SharedMode};
-use fake::registry::create_error;
+use node::{SharedMode};
+use registry::create_error;
 use crate::OpenOptions;
 
-use FileSystem;
-use FileExt;
-use Metadata;
-use Permissions;
+use super::{FileSystem, FileExt, Metadata, Permissions};
 #[cfg(feature = "temp")]
-use {TempDir, TempFileSystem};
+use super::{TempDir, TempFileSystem};
 
 #[cfg(feature = "temp")]
 pub use self::tempdir::FakeTempDir;
