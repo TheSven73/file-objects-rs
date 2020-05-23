@@ -10,4 +10,6 @@ script:
   - cargo clean
   - cargo build --no-default-features --features temp
   - cargo clean
+  - cargo bench
+  - cargo clean
   - cargo test --verbose --all

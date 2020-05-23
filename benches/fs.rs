@@ -1,12 +1,11 @@
 #[macro_use]
 extern crate bencher;
-extern crate filesystem;
 
 use std::io::{Write, SeekFrom, Seek, Read};
 use std::path::PathBuf;
 
 use bencher::Bencher;
-use filesystem::{FileSystem, FakeFileSystem};
+use file_objects_rs::{FileSystem, FakeFileSystem};
 
 fn create_file_absolute(bench: &mut Bencher) {
     let fs = FakeFileSystem::new();

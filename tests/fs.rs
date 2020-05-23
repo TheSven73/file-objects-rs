@@ -1,10 +1,8 @@
-extern crate filesystem;
-
 use std::io::{self, ErrorKind, Read, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
 
-use filesystem::{DirEntry, FakeFileSystem, FileSystem, OsFileSystem, TempDir, TempFileSystem};
-use filesystem::{FileExt, Metadata, OpenOptions, Permissions};
+use file_objects_rs::{DirEntry, FakeFileSystem, FileSystem, OsFileSystem, TempDir, TempFileSystem};
+use file_objects_rs::{FileExt, Metadata, OpenOptions, Permissions};
 
 macro_rules! make_test {
     ($test:ident, $fs:expr) => {
