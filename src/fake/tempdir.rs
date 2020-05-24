@@ -1,7 +1,6 @@
 use std::path::{Path, PathBuf};
 use std::sync::{Mutex, Weak};
 
-use rand;
 use rand::Rng;
 
 use super::TempDir;

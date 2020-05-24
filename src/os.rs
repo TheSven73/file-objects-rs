@@ -6,9 +6,6 @@ use std::io::{Result};
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 
-#[cfg(feature = "temp")]
-use tempdir;
-
 use super::{DirEntry, FileSystem, ReadDir, FileExt, Metadata, Permissions};
 #[cfg(feature = "temp")]
 use super::{TempDir, TempFileSystem};
