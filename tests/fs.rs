@@ -909,7 +909,9 @@ fn remove_file_fails_if_node_is_a_directory<T: FileSystem>(fs: &T, parent: &Path
     let result = fs.remove_file(&path);
 
     assert!(result.is_err());
-    assert_eq!(result.unwrap_err().kind(), ErrorKind::Other);
+
+    let error_kind = result.unwrap_err().kind();
+    assert!(error_kind == ErrorKind::Other || error_kind == ErrorKind::PermissionDenied);
 }
 
 fn copy_file_copies_a_file<T: FileSystem>(fs: &T, parent: &Path) {
@@ -1961,10 +1963,12 @@ fn writable_object_extends_file<T: FileSystem>(fs: &T, parent: &Path) {
 
 fn canonicalize_ok_if_file_exists<T: FileSystem>(fs: &T, parent: &Path) {
     let path = parent.join("test.txt");
-    write_file(fs, &path, "test.txt").unwrap();
+    write_file(fs, &path, "contents 1").unwrap();
     let result = fs.canonicalize(&path);
     assert!(result.is_ok());
-    assert_eq!(result.unwrap(), path);
+    let result_path = result.unwrap();
+    let contents = read_file(fs, &result_path).unwrap();
+    assert_eq!(contents, b"contents 1");
 }
 
 fn canonicalize_ok_if_root<T: FileSystem>(fs: &T, _parent: &Path) {
@@ -1994,7 +1998,7 @@ fn canonicalize_ok_if_relative_path<T: FileSystem>(fs: &T, parent: &Path) {
     fs.set_current_dir(&parent).unwrap();
     let result = fs.canonicalize(&PathBuf::from("."));
     assert!(result.is_ok());
-    assert_eq!(result.unwrap(), parent);
+    assert_eq!(result.unwrap(), fs.canonicalize(parent).unwrap());
 
     fs.set_current_dir(save_current_dir).unwrap();
 }
@@ -2006,7 +2010,7 @@ fn canonicalize_ok_if_path_ends_in_dotdot<T: FileSystem>(fs: &T, parent: &Path) 
     let dotdot = dir.join("..");
     let result = fs.canonicalize(&dotdot);
     assert!(result.is_ok());
-    assert_eq!(result.unwrap(), parent);
+    assert_eq!(result.unwrap(), fs.canonicalize(parent).unwrap());
 }
 
 fn canonicalize_fails_if_file_doesnt_exist<T: FileSystem>(fs: &T, parent: &Path) {
@@ -2024,7 +2028,9 @@ fn canonicalize_ok_with_dotdot_if_paths_exist<T: FileSystem>(fs: &T, parent: &Pa
     let dotdot = dir.join("..").join("test").join("test.txt");
     let result = fs.canonicalize(&dotdot);
     assert!(result.is_ok());
-    assert_eq!(result.unwrap(), path);
+
+    assert_eq!(read_file(fs, &path).unwrap(), b"test text");
+    assert_eq!(result.unwrap(), fs.canonicalize(path).unwrap());
 }
 
 fn canonicalize_fails_with_dotdot_if_path_doesnt_exist<T: FileSystem>(fs: &T, parent: &Path) {

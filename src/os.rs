@@ -1,7 +1,7 @@
 use std::env;
 use std::ffi::OsString;
 use std::fs::{self};
-use std::io::{Result};
+use std::io::{Result, Error, ErrorKind};
 #[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
@@ -131,7 +131,26 @@ impl FileSystem for OsFileSystem {
     }
 
     fn canonicalize<P: AsRef<Path>>(&self, path: P) -> Result<PathBuf> {
-        fs::canonicalize(path)
+        fs::canonicalize(check_path_resolution(path)?.as_path())
+    }
+}
+
+fn check_path_resolution<P: AsRef<Path>>(path: P) -> Result<PathBuf> {
+    let mut itr = path.as_ref().iter();
+    match itr.next() {
+        Some(first_component) => {
+            let mut partial_path = PathBuf::from(first_component);
+
+            while let Some(cmp) = itr.next() {
+                if !partial_path.is_dir() {
+                    return Err(Error::new(ErrorKind::Other, "Not a directory"))
+                }
+                partial_path.push(cmp);
+            }
+
+            Ok(partial_path)
+        },
+        None => Err(Error::new(ErrorKind::NotFound, "No such file or directory"))
     }
 }
 
