@@ -2019,12 +2019,16 @@ fn canonicalize_ok_with_dotdot_if_paths_exist<T: FileSystem>(fs: &T, parent: &Pa
     let dir = parent.join("test");
     fs.create_dir(&dir).unwrap();
     let path = dir.join("test.txt");
-    write_file(fs, &path, "test text").unwrap();
+    write_file(fs, &path, "content 2").unwrap();
 
     let dotdot = dir.join("..").join("test").join("test.txt");
     let result = fs.canonicalize(&dotdot);
     assert!(result.is_ok());
-    assert_eq!(result.unwrap(), path);
+
+    let result_path_buf = result.unwrap();
+
+    assert_eq!(read_file(fs, &result_path_buf.as_path()).unwrap(), b"content 2");
+    assert_eq!(result_path_buf, fs.canonicalize(path).unwrap());
 }
 
 fn canonicalize_fails_with_dotdot_if_path_doesnt_exist<T: FileSystem>(fs: &T, parent: &Path) {
