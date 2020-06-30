@@ -1994,7 +1994,7 @@ fn canonicalize_ok_if_relative_path<T: FileSystem>(fs: &T, parent: &Path) {
     fs.set_current_dir(&parent).unwrap();
     let result = fs.canonicalize(&PathBuf::from("."));
     assert!(result.is_ok());
-    assert_eq!(result.unwrap(), parent);
+    assert_eq!(result.unwrap(), fs.canonicalize(parent).unwrap());
 
     fs.set_current_dir(save_current_dir).unwrap();
 }
@@ -2006,7 +2006,7 @@ fn canonicalize_ok_if_path_ends_in_dotdot<T: FileSystem>(fs: &T, parent: &Path) 
     let dotdot = dir.join("..");
     let result = fs.canonicalize(&dotdot);
     assert!(result.is_ok());
-    assert_eq!(result.unwrap(), parent);
+    assert_eq!(result.unwrap(), fs.canonicalize(parent).unwrap());
 }
 
 fn canonicalize_fails_if_file_doesnt_exist<T: FileSystem>(fs: &T, parent: &Path) {
