@@ -1961,10 +1961,12 @@ fn writable_object_extends_file<T: FileSystem>(fs: &T, parent: &Path) {
 
 fn canonicalize_ok_if_file_exists<T: FileSystem>(fs: &T, parent: &Path) {
     let path = parent.join("test.txt");
-    write_file(fs, &path, "test.txt").unwrap();
+    write_file(fs, &path, "contents 1").unwrap();
     let result = fs.canonicalize(&path);
     assert!(result.is_ok());
-    assert_eq!(result.unwrap(), path);
+    let result_path = result.unwrap();
+    let contents = read_file(fs, &result_path).unwrap();
+    assert_eq!(contents, b"contents 1");
 }
 
 fn canonicalize_ok_if_root<T: FileSystem>(fs: &T, _parent: &Path) {
