@@ -10,8 +10,12 @@ macro_rules! make_test {
         fn $test() {
             let fs = $fs();
             let temp_dir = fs.temp_dir("test").unwrap();
+            // some OSes create temp dirs which are not canonical.
+            // make them canonical to prevent some tests from
+            // failing.
+            let temp_dir = fs.canonicalize(temp_dir.path()).unwrap();
 
-            super::$test(&fs, temp_dir.path());
+            super::$test(&fs, &temp_dir);
         }
     };
 }
