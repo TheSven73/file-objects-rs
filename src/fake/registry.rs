@@ -147,10 +147,13 @@ impl Registry {
     pub fn remove_file(&mut self, path: &Path) -> Result<()> {
         match self.get_file(path) {
             Ok(_) => self.remove(path).and(Ok(())),
-            Err(e) => Err(if cfg!(target_os = "macos") {
-                create_error(ErrorKind::PermissionDenied)
+            Err(err) => Err(if cfg!(target_os = "macos") {
+                match err.kind() {
+                    ErrorKind::Other => create_error(ErrorKind::PermissionDenied),
+                    _ => err,
+                }
             } else {
-                e
+                err
             }),
         }
     }
