@@ -912,11 +912,11 @@ fn remove_file_fails_if_node_is_a_directory<T: FileSystem>(fs: &T, parent: &Path
 
     let error_kind = result.unwrap_err().kind();
 
-    if cfg!(target_os = "macos") {
-        assert!(error_kind == ErrorKind::PermissionDenied);
+    assert!(error_kind == if cfg!(target_os = "macos") {
+        ErrorKind::PermissionDenied
     } else {
-        assert!(error_kind == ErrorKind::Other);
-    }
+        ErrorKind::Other
+    });
 }
 
 fn copy_file_copies_a_file<T: FileSystem>(fs: &T, parent: &Path) {
