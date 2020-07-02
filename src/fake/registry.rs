@@ -145,6 +145,11 @@ impl Registry {
     }
 
     pub fn remove_file(&mut self, path: &Path) -> Result<()> {
+        if cfg!(target_os = "macos") && self.is_dir(path) {
+            // on MacOS, attempting to delete a directory results
+            // in a "permission denied" error.
+            return Err(create_error(ErrorKind::PermissionDenied));
+        }
         match self.get_file(path) {
             Ok(_) => self.remove(path).and(Ok(())),
             Err(e) => Err(e),
