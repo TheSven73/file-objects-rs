@@ -147,7 +147,11 @@ impl Registry {
     pub fn remove_file(&mut self, path: &Path) -> Result<()> {
         match self.get_file(path) {
             Ok(_) => self.remove(path).and(Ok(())),
-            Err(e) => Err(e),
+            Err(e) => Err(if cfg!(target_os = "macos") {
+                create_error(ErrorKind::PermissionDenied)
+            } else {
+                e
+            }),
         }
     }
 
@@ -239,13 +243,7 @@ impl Registry {
     pub fn get_file(&self, path: &Path) -> Result<&File> {
         self.get(path).and_then(|node| match node {
             Node::File(ref file) => Ok(file),
-            Node::Dir(_) => {
-                if cfg!(target_os = "macos") {
-                    Err(create_error(ErrorKind::PermissionDenied))
-                } else {
-                    Err(create_error(ErrorKind::Other))
-                }
-            }
+            Node::Dir(_) => Err(create_error(ErrorKind::Other)),
         })
     }
 
