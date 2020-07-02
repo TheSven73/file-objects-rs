@@ -324,8 +324,13 @@ impl Registry {
                 // final component must exist
                 self.get(&sane_path)?;
             } else {
-                // non-final component must be a directory
-                self.get_dir(&sane_path)?;
+                // non-final component must be a directory, unless we're on macos,
+                // which insists only that the partial path exist
+                if cfg!(target_os = "macos") {
+                    self.get(&sane_path)?;
+                } else {
+                    self.get_dir(&sane_path)?;
+                }
             }
         }
         Ok(sane_path)

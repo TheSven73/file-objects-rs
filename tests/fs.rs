@@ -10,8 +10,12 @@ macro_rules! make_test {
         fn $test() {
             let fs = $fs();
             let temp_dir = fs.temp_dir("test").unwrap();
+            // some OSes create temp dirs which are not canonical.
+            // make them canonical to prevent some tests from
+            // failing.
+            let temp_dir = fs.canonicalize(temp_dir.path()).unwrap();
 
-            super::$test(&fs, temp_dir.path());
+            super::$test(&fs, &temp_dir);
         }
     };
 }
@@ -203,7 +207,12 @@ macro_rules! test_fs {
             make_test!(canonicalize_ok_with_dotdot_if_paths_exist, $fs);
             make_test!(canonicalize_fails_with_dotdot_if_path_doesnt_exist, $fs);
             make_test!(canonicalize_cant_go_lower_than_root, $fs);
+
+            #[cfg(not(target_os = "macos"))]
             make_test!(canonicalize_fails_if_subpath_is_file, $fs);
+
+            #[cfg(target_os = "macos")]
+            make_test!(canonicalize_ok_if_subpath_is_file, $fs);
 
             #[cfg(unix)]
             make_test!(mode_returns_permissions, $fs);
@@ -2055,6 +2064,7 @@ fn canonicalize_cant_go_lower_than_root<T: FileSystem>(fs: &T, parent: &Path) {
     assert_eq!(result.unwrap(), root);
 }
 
+#[cfg(not(target_os = "macos"))]
 fn canonicalize_fails_if_subpath_is_file<T: FileSystem>(fs: &T, parent: &Path) {
     let dir = parent.join("test");
     fs.create_dir(&dir).unwrap();
@@ -2064,6 +2074,22 @@ fn canonicalize_fails_if_subpath_is_file<T: FileSystem>(fs: &T, parent: &Path) {
     let dotdot = parent.join("test/test.txt/../test.txt");
     let result = fs.canonicalize(&dotdot);
     assert!(result.is_err());
+}
+
+#[cfg(target_os = "macos")]
+fn canonicalize_ok_if_subpath_is_file<T: FileSystem>(fs: &T, parent: &Path) {
+    let dir = parent.join("test");
+    fs.create_dir(&dir).unwrap();
+    let path = dir.join("test.txt");
+    write_file(fs, &path, "content 3").unwrap();
+
+    let dotdot = parent.join("test/test.txt/../test.txt");
+    let result = fs.canonicalize(&dotdot);
+    assert!(result.is_ok());
+
+    let content = read_file(fs, result.unwrap().as_path());
+    assert_eq!(content.unwrap(), b"content 3");
+
 }
 
 #[cfg(unix)]
