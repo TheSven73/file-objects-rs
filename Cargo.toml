@@ -1,6 +1,6 @@
 [package]
 name = "file-objects-rs"
-version = "0.1.0"
+version = "0.1.1"
 description = "Real and fake implementations of file system operations"
 authors = [
   "Sven Van Asbroeck <TheSven73@gmail.com>",
